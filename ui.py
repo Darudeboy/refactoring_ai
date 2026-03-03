@@ -160,6 +160,7 @@ class BlastAIAssistant:
         self.app_gui = app_gui
         self.memory = []
         self.pending_bt_release_key: str | None = None
+        self.pending_arch_release_key: str | None = None
         self.llm = SberGigaChatHR().bind_tools([])
         self._setup_graph()
 
@@ -863,6 +864,37 @@ class BlastAIAssistant:
                 self.app_gui.append_ai_chat(f"🤖 Blast AI: {result}\n\n")
                 return True
 
+        if self.pending_arch_release_key:
+            project_match = re.search(
+                r"\b(HRC|HRM|NEUROUI|SFILE|SEARCHCS|NEURO|HRPDEV)\b",
+                raw,
+                re.IGNORECASE,
+            )
+            fix_match = re.search(
+                r"(?:верси\w*|fix\s*version|fixversion)\s*[:=]?\s*([A-Z0-9._\-]+)",
+                raw,
+                re.IGNORECASE,
+            )
+            if not fix_match:
+                fix_match = re.search(r"\b([A-Z]{1,15}\-[A-Z0-9._\-]{3,})\b", raw, re.IGNORECASE)
+            if project_match and fix_match:
+                project_key = project_match.group(1).upper()
+                fix_version = fix_match.group(1).strip()
+                release_key = self.pending_arch_release_key
+                self.pending_arch_release_key = None
+                self.app_gui.append_ai_chat(
+                    f"🛠️ [Агент] Получил project_key='{project_key}', fix_version='{fix_version}' "
+                    f"для {release_key}, запускаю проставление архитектуры...\n"
+                )
+                result = self.app_gui.start_architecture_update_from_ai(
+                    release_key=release_key,
+                    announce_in_chat=True,
+                    forced_project_key=project_key,
+                    forced_fix_version=fix_version,
+                )
+                self.app_gui.append_ai_chat(f"🤖 Blast AI: {result}\n\n")
+                return True
+
         release_match = re.search(r"(HRPRELEASE-\d+)", raw, re.IGNORECASE)
         version_match = re.search(
             r"(?:верси\w*|fix\s*version|fixversion)\s*[:=]?\s*([A-Z0-9._\-]+)",
@@ -964,12 +996,28 @@ class BlastAIAssistant:
         )
         if architecture_intent and release_match:
             release_key = release_match.group(1).upper()
+            project_match = re.search(
+                r"\b(HRC|HRM|NEUROUI|SFILE|SEARCHCS|NEURO|HRPDEV)\b",
+                raw,
+                re.IGNORECASE,
+            )
+            fix_match = re.search(
+                r"(?:верси\w*|fix\s*version|fixversion)\s*[:=]?\s*([A-Z0-9._\-]+)",
+                raw,
+                re.IGNORECASE,
+            )
+            if not fix_match:
+                fix_match = re.search(r"\b([A-Z]{1,15}\-[A-Z0-9._\-]{3,})\b", raw, re.IGNORECASE)
+            forced_project = project_match.group(1).upper() if project_match else ""
+            forced_fix = fix_match.group(1).strip() if fix_match else ""
             self.app_gui.append_ai_chat(
                 f"🛠️ [Агент] Прямая команда: проставляю архитектуру для Story в релизе {release_key}\n"
             )
             result = self.app_gui.start_architecture_update_from_ai(
                 release_key=release_key,
                 announce_in_chat=True,
+                forced_project_key=forced_project,
+                forced_fix_version=forced_fix,
             )
             self.app_gui.append_ai_chat(f"🤖 Blast AI: {result}\n\n")
             return True
@@ -1793,19 +1841,30 @@ class ModernJiraApp(ctk.CTk):
             if announce_in_chat:
                 self.append_ai_chat(f"⚠️ Ошибка запуска bt3.py: {e}\n\n")
 
-    def start_architecture_update_from_ai(self, release_key: str, announce_in_chat: bool = False) -> str:
+    def start_architecture_update_from_ai(
+        self,
+        release_key: str,
+        announce_in_chat: bool = False,
+        forced_project_key: str = "",
+        forced_fix_version: str = "",
+    ) -> str:
         safe_release = (release_key or "").strip().upper()
         if not safe_release:
             return "Ошибка: release_key не указан."
+        safe_project = (forced_project_key or "").strip().upper()
+        safe_fix = (forced_fix_version or "").strip()
 
         self.after(0, self._open_monitor_tab)
         self.after(0, lambda: self.update_status("Проставление архитектуры..."))
-        self.after(0, lambda: self.details_label.configure(text=f"Релиз: {safe_release}"))
+        details = f"Релиз: {safe_release}"
+        if safe_project and safe_fix:
+            details += f" | override: {safe_project}/{safe_fix}"
+        self.after(0, lambda d=details: self.details_label.configure(text=d))
         self.after(0, lambda: self.progress_bar.set(0.05))
 
         worker = threading.Thread(
             target=self._architecture_update_thread,
-            args=(safe_release, announce_in_chat),
+            args=(safe_release, announce_in_chat, safe_project, safe_fix),
             daemon=True,
         )
         worker.start()
@@ -1814,7 +1873,13 @@ class ModernJiraApp(ctk.CTk):
             "Прогресс в Мониторинге."
         )
 
-    def _architecture_update_thread(self, release_key: str, announce_in_chat: bool):
+    def _architecture_update_thread(
+        self,
+        release_key: str,
+        announce_in_chat: bool,
+        forced_project_key: str = "",
+        forced_fix_version: str = "",
+    ):
         try:
             if not ARCH_JIRA_TOKEN:
                 raise ValueError("Не найден JIRA_TOKEN для arch.py логики.")
@@ -1825,6 +1890,19 @@ class ModernJiraApp(ctk.CTk):
 
             linked_keys = self.jira_service.get_linked_issues(release_key)
             story_pairs: set[tuple[str, str]] = set()
+            consist_projects: set[str] = set()
+
+            for link in release.get("fields", {}).get("issuelinks", []) or []:
+                link_type = link.get("type", {}) or {}
+                outward_name = (link_type.get("outward") or "").lower()
+                inward_name = (link_type.get("inward") or "").lower()
+                is_consists = "consists of" in outward_name or "consists of" in inward_name
+                if not is_consists:
+                    continue
+                target = link.get("outwardIssue") or link.get("inwardIssue") or {}
+                key = (target.get("key") or "").upper()
+                if "-" in key:
+                    consist_projects.add(key.split("-", 1)[0])
 
             for idx, key in enumerate(linked_keys, start=1):
                 issue = self.jira_service.get_issue_details(key)
@@ -1844,18 +1922,75 @@ class ModernJiraApp(ctk.CTk):
                     lambda p=min(0.6, idx / max(len(linked_keys), 1) * 0.6): self.progress_bar.set(p),
                 )
 
-            if not story_pairs:
-                release_versions = release.get("fields", {}).get("fixVersions", []) or []
-                release_project = release.get("fields", {}).get("project", {}).get("key", "")
-                for fv in release_versions:
-                    fv_name = fv.get("name")
-                    if release_project and fv_name:
-                        story_pairs.add((release_project, fv_name))
+            if forced_project_key and forced_fix_version:
+                story_pairs.add((forced_project_key, forced_fix_version))
 
             if not story_pairs:
+                release_versions = release.get("fields", {}).get("fixVersions", []) or []
+                release_project = (release.get("fields", {}).get("project", {}).get("key", "") or "").upper()
+                fix_candidates = [v.get("name") for v in release_versions if v.get("name")]
+                ui_fix = self.version_entry.get().strip()
+                if ui_fix:
+                    fix_candidates.append(ui_fix)
+                fix_candidates = sorted(set(fix_candidates))
+
+                project_candidates = set()
+                if release_project:
+                    project_candidates.add(release_project)
+                project_candidates.update(consist_projects)
+                if forced_project_key:
+                    project_candidates.add(forced_project_key.upper())
+
+                for pk in project_candidates:
+                    for fv_name in fix_candidates:
+                        story_pairs.add((pk, fv_name))
+
+            if forced_project_key and not forced_fix_version:
+                release_versions = release.get("fields", {}).get("fixVersions", []) or []
+                for fv in release_versions:
+                    fv_name = fv.get("name")
+                    if fv_name:
+                        story_pairs.add((forced_project_key, fv_name))
+                ui_fix = self.version_entry.get().strip()
+                if ui_fix:
+                    story_pairs.add((forced_project_key, ui_fix))
+
+            if not story_pairs and forced_fix_version:
+                release_project = (release.get("fields", {}).get("project", {}).get("key", "") or "").upper()
+                if release_project:
+                    story_pairs.add((release_project, forced_fix_version))
+                for pk in consist_projects:
+                    story_pairs.add((pk, forced_fix_version))
+
+            # Отфильтровать пустые пары
+            story_pairs = {
+                (pk.strip().upper(), fv.strip())
+                for pk, fv in story_pairs
+                if (pk or "").strip() and (fv or "").strip()
+            }
+
+            if not story_pairs:
+                self.ai_assistant.pending_arch_release_key = release_key
+                msg = (
+                    "Не удалось определить project_key/fix_version автоматически. "
+                    "Укажи их в одном сообщении, например: 'HRC HM-REL-05-03-2026' "
+                    "или 'project HRC, fixVersion HM-REL-05-03-2026'."
+                )
+                raise ValueError(msg)
+
+            # Приоритет project, найденным по consists of: если есть, не запускать лишние проекты.
+            if consist_projects:
+                story_pairs = {
+                    (pk, fv)
+                    for pk, fv in story_pairs
+                    if pk in consist_projects or pk == forced_project_key
+                }
+
+            if not story_pairs:
+                self.ai_assistant.pending_arch_release_key = release_key
                 raise ValueError(
-                    "Не удалось определить project/fixVersion для Story в релизе. "
-                    "Проверь привязки задач и fixVersion."
+                    "В релизе не найдено consists-of проектов для проставления архитектуры. "
+                    "Укажи project_key и fix_version вручную."
                 )
 
             fixer = ArchitectureFieldFixer(ARCH_JIRA_URL, ARCH_JIRA_TOKEN)

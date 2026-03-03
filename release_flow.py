@@ -17,7 +17,13 @@ def _contains_any(text: str, keywords: List[str]) -> bool:
 def _status_in(status: str, allowed_statuses: List[str]) -> bool:
     status_norm = _norm(status)
     allowed = {_norm(item) for item in (allowed_statuses or [])}
-    return status_norm in allowed
+    if status_norm in allowed:
+        return True
+    # Jira статусы часто отличаются формой слова: "Выполнен/Выполнено", "Закрыт/Закрыто".
+    done_markers = ("done", "closed", "resolved", "выполн", "закры")
+    if any(marker in status_norm for marker in done_markers):
+        return True
+    return False
 
 
 def _extract_issue_text(issue: dict) -> str:
@@ -56,11 +62,33 @@ def _find_issue_value_by_candidates(source: dict, candidates: List[str]) -> Any:
     return None
 
 
+def _flatten_issue_fields(issue: dict) -> str:
+    fields = issue.get("fields", {}) or {}
+    rendered = issue.get("renderedFields", {}) or {}
+    parts: List[str] = []
+    for key, value in fields.items():
+        parts.append(f"{key}:{value}")
+    for key, value in rendered.items():
+        parts.append(f"{key}:{value}")
+    return " ".join(parts)
+
+
 def _has_distribution_link(release_issue: dict, profile: dict) -> bool:
     fields = release_issue.get("fields", {}) or {}
-    candidates = profile.get("distribution_tab", {}).get("link_fields", [])
+    tab = profile.get("distribution_tab", {})
+    candidates = tab.get("link_fields", [])
     value = _find_issue_value_by_candidates(fields, candidates)
     if value in (None, ""):
+        # Fallback: в некоторых тенантах нет стабильного customfield, ищем по текстовым маркерам.
+        blob = _flatten_issue_fields(release_issue).lower()
+        ke_markers = [_norm(x) for x in tab.get("ke_keywords", [])]
+        has_ke = any(marker in blob for marker in ke_markers) if ke_markers else False
+        if any(marker in blob for marker in ("дистриб", "distrib", "distribution", "artifact")) and (
+            "http://" in blob or "https://" in blob
+        ):
+            return True
+        if has_ke and ("http://" in blob or "https://" in blob):
+            return True
         return False
     if isinstance(value, list):
         return len(value) > 0
@@ -76,7 +104,11 @@ def _is_distribution_registered(release_issue: dict, profile: dict) -> bool:
     if isinstance(value, bool):
         return value
     if value is None:
-        return False
+        blob = _flatten_issue_fields(release_issue).lower()
+        ke_markers = [_norm(x) for x in tab.get("ke_keywords", [])]
+        has_ke = any(marker in blob for marker in ke_markers) if ke_markers else False
+        has_registered = any(marker in blob for marker in ("зарегистр", "registered", "регистрац"))
+        return has_ke and has_registered
     return _contains_any(str(value), tab.get("registered_keywords", []))
 
 
@@ -90,9 +122,16 @@ def _is_ift_recommended(release_issue: dict, profile: dict) -> bool:
     if value is None:
         value = _find_issue_value_by_candidates(rendered, candidates)
     if value is None:
-        return False
+        blob = _flatten_issue_fields(release_issue).lower()
+        has_label = "ифт" in blob or "ift" in blob
+        has_recommended = "рекоменд" in blob or "recommended" in blob
+        has_green = any(_norm(x) in blob for x in tab.get("green_keywords", []))
+        return has_label and has_recommended and (has_green or has_recommended)
     keyword = tab.get("recommended_keyword", "рекомендован")
-    return _contains_any(str(value), [keyword])
+    value_str = str(value)
+    if _contains_any(value_str, [keyword]):
+        return True
+    return _contains_any(value_str, ["рекоменд", "recommended"])
 
 
 def _evaluate_story(jira_service, story_key: str, story_issue: dict, profile: dict) -> Dict[str, Any]:
@@ -221,6 +260,17 @@ def _evaluate_manual_subtasks(release_issue: dict, related_issues: List[dict], p
     return pending
 
 
+def _derive_business_project(release_issue: dict, related_issues: List[dict]) -> str:
+    # Для отчета берем проект по первой Story/Bug в составе релиза, а не проект релизной задачи.
+    for issue in related_issues:
+        issue_type = _extract_issue_type(issue).lower()
+        if issue_type in ("story", "bug", "история", "дефект"):
+            project_key = str(issue.get("fields", {}).get("project", {}).get("key", "")).strip().upper()
+            if project_key:
+                return project_key
+    return str(release_issue.get("fields", {}).get("project", {}).get("key", "")).strip().upper()
+
+
 def _next_transition(current_status: str, workflow_order: List[str]) -> Optional[str]:
     normalized = [_norm(x) for x in workflow_order]
     current = _norm(current_status)
@@ -246,8 +296,8 @@ def evaluate_release_gates(
     if not release:
         return {"success": False, "message": f"Релиз {safe_release} не найден."}
 
-    project_key = str(release.get("fields", {}).get("project", {}).get("key", ""))
-    profile = get_release_flow_profile(project_key=project_key, requested_profile=profile_name)
+    release_project_key = str(release.get("fields", {}).get("project", {}).get("key", ""))
+    profile = get_release_flow_profile(project_key=release_project_key, requested_profile=profile_name)
 
     linked_keys = jira_service.get_linked_issues(safe_release)
     related_issues: List[dict] = []
@@ -264,6 +314,8 @@ def evaluate_release_gates(
             story_results.append(_evaluate_story(jira_service, key, issue, profile))
         elif issue_type == "bug":
             bug_results.append(_evaluate_bug(key, issue, profile))
+
+    project_key = _derive_business_project(release, related_issues)
 
     auto_passed: List[Dict[str, Any]] = []
     auto_failed: List[Dict[str, Any]] = []
@@ -306,7 +358,9 @@ def evaluate_release_gates(
     }
     (auto_passed if recommendation_gate["ok"] else auto_failed).append(recommendation_gate)
 
-    manual_pending = _evaluate_manual_subtasks(release, related_issues, profile)
+    manual_raw = _evaluate_manual_subtasks(release, related_issues, profile)
+    manual_pending = [item for item in manual_raw if item.get("status") != "optional_missing"]
+    manual_optional = [item for item in manual_raw if item.get("status") == "optional_missing"]
 
     confirmations = manual_confirmations or {}
     manual_done = []
@@ -335,6 +389,7 @@ def evaluate_release_gates(
         "auto_passed": auto_passed,
         "auto_failed": auto_failed,
         "manual_pending": manual_pending,
+        "manual_optional": manual_optional,
         "manual_done": manual_done,
         "story_results": story_results,
         "bug_results": bug_results,
@@ -369,6 +424,10 @@ def format_release_gate_report(result: Dict[str, Any]) -> str:
         lines.append(f"✅ Подтверждено вручную: {len(result.get('manual_done', []))}")
         for check in result.get("manual_done", []):
             lines.append(f"  - {check.get('id')}: подтверждено")
+    if result.get("manual_optional"):
+        lines.append(f"ℹ️ Опциональные проверки: {len(result.get('manual_optional', []))}")
+        for check in result.get("manual_optional", []):
+            lines.append(f"  - {check.get('id')}: {check.get('message')}")
     lines.append("")
 
     if result.get("ready_for_transition"):

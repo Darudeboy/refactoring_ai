@@ -55,6 +55,10 @@ def _default_profile() -> Dict[str, Any]:
                 ["customfield_ift_recommendation", "customfield_recommendation"],
             ),
             "recommended_keyword": os.getenv("RELEASE_FLOW_RECOMMENDED_KEYWORD", "рекомендован"),
+            "green_keywords": _split_csv(
+                os.getenv("RELEASE_FLOW_RECOMMENDED_GREEN_KEYWORDS", ""),
+                ["green", "success", "status-lozenge-success", "aui-lozenge-success"],
+            ),
         },
         "distribution_tab": {
             "link_fields": _split_csv(
@@ -69,6 +73,10 @@ def _default_profile() -> Dict[str, Any]:
                 os.getenv("RELEASE_FLOW_DISTRIBUTION_REGISTERED_KEYWORDS", ""),
                 ["зарегистрирован", "registered", "yes", "true"],
             ),
+            "ke_keywords": _split_csv(
+                os.getenv("RELEASE_FLOW_DISTRIBUTION_KE_KEYWORDS", ""),
+                ["кэ дистрибутива", "ке дистрибутива", "distribution ke", "ke distribution"],
+            ),
         },
         "manual_checks": [
             {
@@ -79,19 +87,19 @@ def _default_profile() -> Dict[str, Any]:
                 "id": "load_test_subtask",
                 "title": "Подзадача нагрузочного тестирования",
                 "keywords": ["нагрузоч", "load test", "performance test"],
-                "required_statuses": ["Выполнено", "Закрыто", "Done", "Closed"],
+                "required_statuses": ["Выполнено", "Выполнен", "Закрыто", "Закрыт", "Done", "Closed"],
             },
             {
                 "id": "author_supervision_subtask",
                 "title": "Подзадача авторского надзора",
                 "keywords": ["авторск", "author supervision"],
-                "required_statuses": ["Выполнено", "Закрыто", "Done", "Closed"],
+                "required_statuses": ["Выполнено", "Выполнен", "Закрыто", "Закрыт", "Done", "Closed"],
             },
             {
                 "id": "translations_subtask",
                 "title": "Подзадача проверки переводов",
                 "keywords": ["перевод", "translation"],
-                "required_statuses": ["Выполнено", "Закрыто", "Done", "Closed"],
+                "required_statuses": ["Выполнено", "Выполнен", "Закрыто", "Закрыт", "Done", "Closed"],
             },
         ],
     }

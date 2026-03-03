@@ -33,6 +33,32 @@ def _detect_pr_status(*texts: str) -> str:
     return "Unknown"
 
 
+def _extract_target_branch(pr: dict) -> str:
+    """Достает целевую ветку PR из разных форматов dev-status."""
+    destination = pr.get("destination") or {}
+    to_ref = pr.get("toRef") or {}
+    target = pr.get("target") or {}
+    branch_candidates = (
+        destination.get("branch"),
+        destination.get("name"),
+        to_ref.get("displayId"),
+        to_ref.get("id"),
+        target.get("branch"),
+        target.get("name"),
+        pr.get("targetBranch"),
+        pr.get("destinationBranch"),
+    )
+    for value in branch_candidates:
+        if value:
+            return str(value)
+    return ""
+
+
+def _is_master_like_branch(branch_name: str) -> bool:
+    normalized = (branch_name or "").strip().lower()
+    return normalized.endswith("/master") or normalized in {"master", "main"} or normalized.endswith("/main")
+
+
 def _extract_prs_from_issue_links(issue: dict) -> List[Dict[str, str]]:
     prs: List[Dict[str, str]] = []
     for link in issue.get("fields", {}).get("issuelinks", []) or []:
@@ -105,6 +131,10 @@ def _extract_prs_from_dev_status(dev_prs: List[dict]) -> List[Dict[str, str]]:
     for pr in dev_prs:
         url = pr.get("url", "")
         name = pr.get("name", "") or url
+        target_branch = _extract_target_branch(pr)
+        if target_branch and not _is_master_like_branch(target_branch):
+            # Для релизной проверки берем PR только в master/main.
+            continue
         raw_status = (pr.get("status") or "").upper()
         if raw_status == "MERGED":
             status = "Merged"
@@ -120,6 +150,7 @@ def _extract_prs_from_dev_status(dev_prs: List[dict]) -> List[Dict[str, str]]:
                 "title": name,
                 "status": status,
                 "url": url,
+                "target_branch": target_branch,
                 "source": "dev-status",
             }
         )
@@ -315,7 +346,11 @@ def format_release_tasks_pr_report(report: dict) -> str:
             for pr in prs:
                 title = (pr.get("title") or pr.get("id") or "PR").strip()
                 status = pr.get("status", "Unknown")
-                lines.append(f"  PR [{status}]: {title}")
+                target_branch = (pr.get("target_branch") or "").strip()
+                if target_branch:
+                    lines.append(f"  PR [{status}] -> {target_branch}: {title}")
+                else:
+                    lines.append(f"  PR [{status}]: {title}")
         lines.append("")
 
     lines.append("=" * 80)

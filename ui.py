@@ -532,6 +532,26 @@ class BlastAIAssistant:
                 announce_in_chat=True,
             )
 
+        @tool("link_tasks_to_release")
+        def link_tasks_to_release(release_key: str, fix_version: str) -> str:
+            """
+            Привязать Story/Bug задачи выбранной версии к релизу.
+
+            Args:
+                release_key: Ключ релиза Jira (например, HRPRELEASE-113937).
+                fix_version: Значение fixVersion (например, HM-REL-05-03-2026).
+            """
+            release_key = (release_key or "").strip().upper()
+            fix_version = (fix_version or "").strip()
+            if not release_key:
+                return "Ошибка: не передан release_key (пример: HRPRELEASE-113937)."
+            if not fix_version:
+                return "Ошибка: не передан fix_version (пример: HM-REL-05-03-2026)."
+            return self.app_gui.start_link_issues_from_ai(
+                release_key=release_key,
+                fix_version=fix_version,
+            )
+
         self.tools_map = {
             "get_jira_status": get_jira_status,
             "create_deploy_plan": create_deploy_plan,
@@ -542,6 +562,7 @@ class BlastAIAssistant:
             "move_release_status": move_release_status,
             "run_release_pipeline": run_release_pipeline,
             "check_release_tasks_pr_status": check_release_tasks_pr_status,
+            "link_tasks_to_release": link_tasks_to_release,
         }
 
         class AgentState(TypedDict):
@@ -566,13 +587,16 @@ class BlastAIAssistant:
                 "7) move_release_status(issue_key, target_status) — перевод релиза в статус.\\n"
                 "8) run_release_pipeline(issue_key, project_key='', target_lt=45, create_bt=False, create_deploy=False).\\n"
                 "9) check_release_tasks_pr_status(release_key) — Story/Bug + PR статусы (Open/Merged).\\n\\n"
+                "10) link_tasks_to_release(release_key, fix_version) — привязка задач fixVersion к релизу.\\n\\n"
                 "ПРАВИЛА ВЫЗОВА:\\n"
                 "- Если пользователь просит действие, сначала вызови соответствующий инструмент, не выдумывай результат.\\n"
                 "- При нехватке обязательных аргументов ЗАДАЙ УТОЧНЯЮЩИЙ ВОПРОС и не вызывай инструмент.\\n"
                 "- Важные обязательные параметры: "
                 "issue_key/release_key в формате PROJECT-123, "
                 "project_key (для create_business_requirements), "
-                "target_status (для move_release_status).\\n"
+                "target_status (для move_release_status), "
+                "fix_version (для link_tasks_to_release).\\n"
+                "- Если пользователь пишет 'собери задачи с версией X в релиз Y', вызови link_tasks_to_release(release_key=Y, fix_version=X).\\n"
                 "- Если пользователь просит несколько действий, верни несколько отдельных JSON-словарей вызова инструментов подряд.\\n"
                 "- Не используй массив commands, не группируй вызовы в один объект.\\n"
                 "- После ToolMessage ответь кратко и структурно: что выполнено, итог, ошибки/что нужно уточнить."
@@ -627,8 +651,40 @@ class BlastAIAssistant:
         self.app_graph = workflow.compile()
 
     def _handle_direct_commands(self, text: str) -> bool:
-        """Заглушка для прямых команд вне LLM-цикла."""
-        _ = text
+        """Надежные прямые команды (без LLM), чтобы критичные операции не терялись."""
+        raw = (text or "").strip()
+        lowered = raw.lower()
+
+        release_match = re.search(r"(HRPRELEASE-\d+)", raw, re.IGNORECASE)
+        version_match = re.search(
+            r"(?:верс(?:и[яиюе])?|fix\s*version|fixversion)\s*[:=]?\s*([A-Z0-9._\-]+)",
+            raw,
+            re.IGNORECASE,
+        )
+
+        link_intent = any(
+            phrase in lowered
+            for phrase in (
+                "собери задачи",
+                "привяжи задачи",
+                "привязать задачи",
+                "линкуй задачи",
+                "link tasks",
+            )
+        )
+        if link_intent and release_match and version_match:
+            release_key = release_match.group(1).upper()
+            fix_version = version_match.group(1).strip()
+            self.app_gui.append_ai_chat(
+                f"🛠️ [Агент] Прямая команда: привязка задач {fix_version} -> {release_key}\n"
+            )
+            result = self.app_gui.start_link_issues_from_ai(
+                release_key=release_key,
+                fix_version=fix_version,
+            )
+            self.app_gui.append_ai_chat(f"🤖 Blast AI: {result}\n\n")
+            return True
+
         return False
 
     def process_message(self, text: str):
@@ -1329,13 +1385,35 @@ Jira Automation Tool + Confluence Deploy Plans
         self.show_ai_tab()
         self.send_ai_quick_command(command)
 
+    def start_link_issues_from_ai(self, release_key: str, fix_version: str) -> str:
+        """Старт привязки задач из AI-чата через существующий рабочий скрипт."""
+        safe_release = (release_key or "").strip().upper()
+        safe_version = (fix_version or "").strip()
+        if not safe_release:
+            return "Ошибка: release_key не указан."
+        if not safe_version:
+            return "Ошибка: fix_version не указан."
+
+        def start_on_ui_thread():
+            self.release_entry.delete(0, "end")
+            self.release_entry.insert(0, safe_release)
+            self.version_entry.delete(0, "end")
+            self.version_entry.insert(0, safe_version)
+            self.run_operation("link", self._link_issues_thread, safe_release, safe_version, True)
+
+        self.after(0, start_on_ui_thread)
+        return (
+            f"Запущена привязка задач с fixVersion '{safe_version}' в релиз '{safe_release}'. "
+            "Прогресс смотри во вкладке Мониторинг."
+        )
+
     def link_issues(self):
         release_key = self.release_entry.get().strip()
         fix_version = self.version_entry.get().strip()
         if not release_key or not fix_version:
             messagebox.showwarning("Ошибка", "Заполните все поля!")
             return
-        self.run_operation("link", self._link_issues_thread, release_key, fix_version)
+        self.run_operation("link", self._link_issues_thread, release_key, fix_version, False)
 
     def cleanup_issues(self):
         release_key = self.release_entry.get().strip()
@@ -1672,7 +1750,7 @@ Jira Automation Tool + Confluence Deploy Plans
         thread = threading.Thread(target=target_func, args=args, daemon=True)
         thread.start()
 
-    def _link_issues_thread(self, release_key, fix_version):
+    def _link_issues_thread(self, release_key, fix_version, announce_in_chat: bool = False):
         """Поток привязки задач"""
         try:
             self.after(0, lambda: self.update_status("Поиск задач..."))
@@ -1738,10 +1816,16 @@ Jira Automation Tool + Confluence Deploy Plans
             if errors:
                 message += f"\\nОшибки: {len(errors)}"
             self.after(0, lambda m=message: self.show_result("Готово", m))
+            if announce_in_chat:
+                self.append_ai_chat(
+                    f"🤖 Blast AI: Привязка задач в релиз {release_key} завершена.\n{message}\n\n"
+                )
 
         except Exception as e:
             error_msg = str(e)
             self.after(0, lambda m=error_msg: self.show_result("Ошибка", m))
+            if announce_in_chat:
+                self.append_ai_chat(f"⚠️ Ошибка привязки задач: {error_msg}\n\n")
         finally:
             self.after(0, lambda: self.set_ui_enabled(True))
             self.after(0, lambda: self.cancel_btn.configure(state="disabled"))

@@ -120,8 +120,9 @@ class SberGigaChatHR(BaseChatModel):
                 if isinstance(parsed_data, dict) and "commands" in parsed_data:
                     for cmd in parsed_data["commands"]:
                         name = cmd.get("name") or cmd.get("tool")
+                        cmd_args = cmd.get("args", cmd.get("arguments", {}))
                         if name:
-                            tool_calls.append({"name": name, "args": cmd.get("args", {}), "id": os.urandom(8).hex()})
+                            tool_calls.append({"name": name, "args": cmd_args, "id": os.urandom(8).hex()})
                     content = "" # Убираем JSON из текста
             except Exception:
                 pass
@@ -139,6 +140,9 @@ class SberGigaChatHR(BaseChatModel):
                             content = content.replace(match, "")
                         elif action.get("name") and isinstance(action.get("args"), dict):
                             tool_calls.append({"name": action["name"], "args": action["args"], "id": os.urandom(8).hex()})
+                            content = content.replace(match, "")
+                        elif action.get("name") and isinstance(action.get("arguments"), dict):
+                            tool_calls.append({"name": action["name"], "args": action["arguments"], "id": os.urandom(8).hex()})
                             content = content.replace(match, "")
                 except Exception:
                     pass
@@ -201,12 +205,15 @@ class BlastAIAssistant:
             elif parsed.get("name") and isinstance(parsed.get("args"), dict):
                 add_tool_call(parsed.get("name"), parsed.get("args"))
                 remaining = remaining.replace(candidate, "").strip()
+            elif parsed.get("name") and isinstance(parsed.get("arguments"), dict):
+                add_tool_call(parsed.get("name"), parsed.get("arguments"))
+                remaining = remaining.replace(candidate, "").strip()
             elif isinstance(parsed.get("commands"), list):
                 for cmd in parsed["commands"]:
                     if not isinstance(cmd, dict):
                         continue
                     name = cmd.get("tool") or cmd.get("name")
-                    args = cmd.get("args", {})
+                    args = cmd.get("args", cmd.get("arguments", {}))
                     if name:
                         add_tool_call(name, args)
                 remaining = remaining.replace(candidate, "").strip()
@@ -228,6 +235,9 @@ class BlastAIAssistant:
                     remaining = remaining.replace(match, "")
                 elif action.get("name") and isinstance(action.get("args"), dict):
                     add_tool_call(action.get("name"), action.get("args"))
+                    remaining = remaining.replace(match, "")
+                elif action.get("name") and isinstance(action.get("arguments"), dict):
+                    add_tool_call(action.get("name"), action.get("arguments"))
                     remaining = remaining.replace(match, "")
 
         return tool_calls, remaining.strip()
@@ -552,6 +562,16 @@ class BlastAIAssistant:
                 fix_version=fix_version,
             )
 
+        @tool("link_issues_by_fix_version")
+        def link_issues_by_fix_version(release_key: str, fix_version: str) -> str:
+            """
+            Алиас инструмента привязки задач по fixVersion к релизу.
+            Нужен для совместимости с вариантами названия в промптах.
+            """
+            return link_tasks_to_release.invoke(
+                {"release_key": release_key, "fix_version": fix_version}
+            )
+
         self.tools_map = {
             "get_jira_status": get_jira_status,
             "create_deploy_plan": create_deploy_plan,
@@ -563,6 +583,7 @@ class BlastAIAssistant:
             "run_release_pipeline": run_release_pipeline,
             "check_release_tasks_pr_status": check_release_tasks_pr_status,
             "link_tasks_to_release": link_tasks_to_release,
+            "link_issues_by_fix_version": link_issues_by_fix_version,
         }
 
         class AgentState(TypedDict):
@@ -588,6 +609,7 @@ class BlastAIAssistant:
                 "8) run_release_pipeline(issue_key, project_key='', target_lt=45, create_bt=False, create_deploy=False).\\n"
                 "9) check_release_tasks_pr_status(release_key) — Story/Bug + PR статусы (Open/Merged).\\n\\n"
                 "10) link_tasks_to_release(release_key, fix_version) — привязка задач fixVersion к релизу.\\n\\n"
+                "11) link_issues_by_fix_version(release_key, fix_version) — алиас привязки задач к релизу.\\n\\n"
                 "ПРАВИЛА ВЫЗОВА:\\n"
                 "- Если пользователь просит действие, сначала вызови соответствующий инструмент, не выдумывай результат.\\n"
                 "- При нехватке обязательных аргументов ЗАДАЙ УТОЧНЯЮЩИЙ ВОПРОС и не вызывай инструмент.\\n"
@@ -597,6 +619,7 @@ class BlastAIAssistant:
                 "target_status (для move_release_status), "
                 "fix_version (для link_tasks_to_release).\\n"
                 "- Если пользователь пишет 'собери задачи с версией X в релиз Y', вызови link_tasks_to_release(release_key=Y, fix_version=X).\\n"
+                "- Допустим также алиас link_issues_by_fix_version с теми же аргументами.\\n"
                 "- Если пользователь просит несколько действий, верни несколько отдельных JSON-словарей вызова инструментов подряд.\\n"
                 "- Не используй массив commands, не группируй вызовы в один объект.\\n"
                 "- После ToolMessage ответь кратко и структурно: что выполнено, итог, ошибки/что нужно уточнить."
@@ -621,7 +644,7 @@ class BlastAIAssistant:
 
             for tc in tool_calls:
                 name = tc.get("name")
-                args = tc.get("args") or {}
+                args = tc.get("args") or tc.get("arguments") or {}
                 if name in self.tools_map:
                     try:
                         out = self.tools_map[name].invoke(args)
@@ -657,7 +680,7 @@ class BlastAIAssistant:
 
         release_match = re.search(r"(HRPRELEASE-\d+)", raw, re.IGNORECASE)
         version_match = re.search(
-            r"(?:верс(?:и[яиюе])?|fix\s*version|fixversion)\s*[:=]?\s*([A-Z0-9._\-]+)",
+            r"(?:верси\w*|fix\s*version|fixversion)\s*[:=]?\s*([A-Z0-9._\-]+)",
             raw,
             re.IGNORECASE,
         )

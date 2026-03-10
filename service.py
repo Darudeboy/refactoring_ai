@@ -225,6 +225,7 @@ class JiraService:
             "Accept": "application/json, text/plain, */*",
             "Authorization": f"Bearer {self.config.token}",
             "X-Requested-With": "XMLHttpRequest",
+            "X-Atlassian-Token": "no-check",
         }
         headers_post = {
             **headers_get,

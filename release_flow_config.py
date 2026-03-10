@@ -54,9 +54,9 @@ def _default_profile() -> Dict[str, Any]:
         },
         "bug_rules": {
             "ct_ift_keywords": ["ct", "ift", "ифт"],
-            "ct_ift_allowed_statuses": ["Закрыт", "Закрыто", "Closed"],
+            "ct_ift_allowed_statuses": ["Закрыт", "Closed"],
             "prom_keywords": ["пром", "prom"],
-            "prom_expected_statuses": ["Подтверждение выполнения", "Done", "Closed", "Resolved", "Выполнено"],
+            "prom_expected_statuses": ["Выполнен", "Resolved"],
         },
         "testing_tab": {
             "ift_recommendation_fields": _split_csv(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import os
 import re
 from typing import Any, Dict, List, Optional
@@ -112,6 +113,22 @@ def _flatten_issue_fields(issue: dict) -> str:
     for key, value in rendered.items():
         parts.append(f"{key}:{value}")
     return " ".join(parts)
+
+
+def _normalize_rich_text(value: Any) -> str:
+    """
+    Приводит Jira rich/html контент к плоскому тексту:
+    - декодирует HTML entities;
+    - убирает HTML-теги;
+    - схлопывает пробелы.
+    """
+    text = _value_to_text(value)
+    if not text:
+        return ""
+    text = html.unescape(text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip().lower()
 
 
 def _find_field_value_by_display_name(
@@ -236,7 +253,7 @@ def _is_ift_recommended(release_issue: dict, profile: dict) -> bool:
             tab.get("ift_display_keywords", []),
         )
     if value is None:
-        blob = _flatten_issue_fields(release_issue).lower()
+        blob = _normalize_rich_text(_flatten_issue_fields(release_issue))
         has_label = "ифт" in blob or "ift" in blob
         has_recommended = "рекоменд" in blob or "recommended" in blob
         has_green = any(_norm(x) in blob for x in tab.get("green_keywords", []))
@@ -245,9 +262,15 @@ def _is_ift_recommended(release_issue: dict, profile: dict) -> bool:
 
         # Дополнительный парсинг для rendered HTML:
         # "Рекомендация по отчету ИФТ ... Рекомендован".
-        html_blob = str(release_issue.get("renderedFields", {})).lower()
+        html_blob = _normalize_rich_text(release_issue.get("renderedFields", {}))
         if re.search(
             r"рекомендац[а-я\s]*по\s*отчет[а-я\s]*ифт.{0,400}рекомендован",
+            html_blob,
+            flags=re.IGNORECASE | re.DOTALL,
+        ):
+            return True
+        if re.search(
+            r"рекомендац[а-я\s]{0,80}ифт.{0,250}рекоменд",
             html_blob,
             flags=re.IGNORECASE | re.DOTALL,
         ):
@@ -260,7 +283,7 @@ def _is_ift_recommended(release_issue: dict, profile: dict) -> bool:
             return True
         return False
     keyword = (tab.get("ift_approved_keywords") or ["рекомендован"])[0]
-    value_str = str(value)
+    value_str = _normalize_rich_text(value)
     if _contains_any(value_str, [keyword]):
         return True
     return _contains_any(value_str, tab.get("ift_approved_keywords", ["рекоменд", "recommended"]))
@@ -278,12 +301,12 @@ def _is_recommendation_by_display_name(
         field_name_map=field_name_map,
     )
     if value is None:
-        blob = _flatten_issue_fields(release_issue).lower()
+        blob = _normalize_rich_text(_flatten_issue_fields(release_issue))
         has_marker = any(_norm(k) in blob for k in (display_keywords or []))
         if has_marker:
             return _contains_any(blob, approved_keywords)
         return False
-    return _contains_any(_value_to_text(value), approved_keywords)
+    return _contains_any(_normalize_rich_text(value), approved_keywords)
 
 
 def _is_recommendation_in_rendered(
@@ -293,19 +316,27 @@ def _is_recommendation_in_rendered(
 ) -> bool:
     rendered = release_issue.get("renderedFields", {}) or {}
     fields = release_issue.get("fields", {}) or {}
-    html_blob = " ".join(
+    html_blob = _normalize_rich_text(
+        " ".join(
         [
             str(rendered).lower(),
             str(fields.get("customfield_sber_test_html", "")).lower(),
             str(rendered.get("customfield_sber_test_html", "")).lower(),
         ]
     )
+    )
+    approved_terms = [_norm(k) for k in (approved_keywords or []) if _norm(k)]
+    approved_pattern = "|".join(re.escape(term) for term in approved_terms)
+    if not approved_pattern:
+        return False
     for label in label_patterns or []:
         label_norm = _norm(label)
         if not label_norm:
             continue
+        label_words = [w for w in re.split(r"\s+", label_norm) if w]
+        label_pattern = r".{0,40}".join(re.escape(w) for w in label_words) if label_words else re.escape(label_norm)
         # Допускаем "лейбл ... значение" в пределах одного визуального блока.
-        pattern = rf"{re.escape(label_norm)}.{0,250}({'|'.join(re.escape(_norm(k)) for k in approved_keywords if _norm(k))})"
+        pattern = rf"{label_pattern}.{0,250}({approved_pattern})"
         if re.search(pattern, html_blob, flags=re.IGNORECASE | re.DOTALL):
             return True
     return False

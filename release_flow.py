@@ -342,6 +342,55 @@ def _is_recommendation_in_rendered(
     return False
 
 
+def _is_ift_recommended_from_sber_html(release_issue: dict) -> bool:
+    """
+    Спец-фолбэк под sber-test-report HTML:
+    считаем ИФТ пройденным при явном success-маркере и отсутствии "не рекомендован".
+    """
+    html_blob_raw = " ".join(
+        [
+            str((release_issue.get("fields", {}) or {}).get("customfield_sber_test_html", "")),
+            str((release_issue.get("renderedFields", {}) or {}).get("customfield_sber_test_html", "")),
+        ]
+    )
+    html_blob = _normalize_rich_text(html_blob_raw)
+    if not html_blob:
+        return False
+    if re.search(r"\bне\s+рекомендован\b", html_blob, flags=re.IGNORECASE):
+        return False
+    positive_patterns = [
+        r"ift-resolution-success",
+        r"rqm-conclusion-true",
+        r"\bрекомендован\b",
+        r"\brecommended\b",
+    ]
+    return any(re.search(pattern, html_blob, flags=re.IGNORECASE) for pattern in positive_patterns)
+
+
+def _is_dt_recommended_from_dev_status(dev_summary: Dict[str, Any]) -> bool:
+    """
+    Фолбэк для ДТ: используем dev-status summary endpoint.
+    Если repository.count > 0 и нет config/errors, считаем ДТ валидным.
+    """
+    if not isinstance(dev_summary, dict):
+        return False
+    errors = dev_summary.get("errors", [])
+    config_errors = dev_summary.get("configErrors", [])
+    if isinstance(errors, list) and errors:
+        return False
+    if isinstance(config_errors, list) and config_errors:
+        return False
+
+    summary = dev_summary.get("summary", {}) if isinstance(dev_summary.get("summary", {}), dict) else {}
+    repository = summary.get("repository", {}) if isinstance(summary.get("repository", {}), dict) else {}
+    overall = repository.get("overall", {}) if isinstance(repository.get("overall", {}), dict) else {}
+    try:
+        repo_count = int(overall.get("count", 0) or 0)
+    except Exception:
+        repo_count = 0
+    return repo_count > 0
+
+
 def _evaluate_story(jira_service, story_key: str, story_issue: dict, profile: dict) -> Dict[str, Any]:
     story_rules = profile.get("story_rules", {})
     done_statuses = profile.get("done_statuses", [])
@@ -680,6 +729,12 @@ def evaluate_release_gates(
             testing_tab.get("ift_display_keywords", []),
             testing_tab.get("ift_approved_keywords", []),
         )
+    if not recommendation_ok:
+        recommendation_ok = _is_ift_recommended_from_sber_html(release)
+
+    dev_summary = jira_service.get_dev_status_summary(safe_release)
+    if not dt_recommendation_ok:
+        dt_recommendation_ok = _is_dt_recommended_from_dev_status(dev_summary)
 
     qgm_ok, qgm_message, qgm_payload = jira_service.get_qgm_status(safe_release)
     rqg_actual_ok = False
@@ -739,11 +794,17 @@ def evaluate_release_gates(
     }
     (auto_passed if nt_gate["ok"] else auto_failed).append(nt_gate)
 
+    dev_summary_repo_count = (
+        (((dev_summary or {}).get("summary") or {}).get("repository") or {}).get("overall") or {}
+    ).get("count", 0)
     dt_gate = {
         "id": "dt_recommendation",
         "title": "Рекомендация ДТ",
         "ok": dt_recommendation_ok,
-        "details": {"recommended": dt_recommendation_ok},
+        "details": {
+            "recommended": dt_recommendation_ok,
+            "dev_summary_repository_count": dev_summary_repo_count,
+        },
     }
     (auto_passed if dt_gate["ok"] else auto_failed).append(dt_gate)
 

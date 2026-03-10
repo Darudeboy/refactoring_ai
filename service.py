@@ -208,6 +208,21 @@ class JiraService:
             )
             return []
 
+    def get_dev_status_summary(self, issue_key: str) -> Dict[str, object]:
+        """
+        Получение сводки Development panel:
+        /rest/dev-status/1.0/issue/summary?issueId=...
+        """
+        safe_key = (issue_key or "").strip().upper()
+        issue_id = self.get_issue_id(safe_key)
+        if not issue_id:
+            return {}
+        try:
+            return self.jira.get(f"/rest/dev-status/1.0/issue/summary?issueId={issue_id}") or {}
+        except Exception as e:
+            self.logger.error("Ошибка получения dev-status summary для %s: %s", safe_key, e)
+            return {}
+
     def get_available_transitions(self, issue_key: str) -> List[dict]:
         """Получение доступных переходов статуса для задачи"""
         try:

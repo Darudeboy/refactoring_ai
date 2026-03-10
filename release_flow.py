@@ -246,8 +246,6 @@ def _is_ift_recommended(release_issue: dict, profile: dict) -> bool:
         # Дополнительный парсинг для rendered HTML:
         # "Рекомендация по отчету ИФТ ... Рекомендован".
         html_blob = str(release_issue.get("renderedFields", {})).lower()
-        html_blob = re.sub(r"<[^>]+>", " ", html_blob)
-        html_blob = re.sub(r"\s+", " ", html_blob)
         if re.search(
             r"рекомендац[а-я\s]*по\s*отчет[а-я\s]*ифт.{0,400}рекомендован",
             html_blob,
@@ -302,8 +300,6 @@ def _is_recommendation_in_rendered(
             str(rendered.get("customfield_sber_test_html", "")).lower(),
         ]
     )
-    html_blob = re.sub(r"<[^>]+>", " ", html_blob)
-    html_blob = re.sub(r"\s+", " ", html_blob)
     for label in label_patterns or []:
         label_norm = _norm(label)
         if not label_norm:
@@ -581,41 +577,21 @@ def evaluate_release_gates(
 
     auto_passed: List[Dict[str, Any]] = []
     auto_failed: List[Dict[str, Any]] = []
-    auto_warnings: List[Dict[str, Any]] = []
 
     stories_ok = all(item.get("ok") for item in story_results) if story_results else True
-    story_gate = {
-        "id": "story_quality",
-        "title": "Качество Story (наличие БТ и Архитектуры)",
-        "ok": stories_ok,
+    bugs_ok = all(item.get("ok") for item in bug_results) if bug_results else True
+    quality_gate = {
+        "id": "story_bug_quality",
+        "title": "Качество Story/Bug",
+        "ok": stories_ok and bugs_ok,
         "details": {
             "stories_total": len(story_results),
             "stories_failed": len([x for x in story_results if not x.get("ok")]),
+            "bugs_total": len(bug_results),
+            "bugs_failed": len([x for x in bug_results if not x.get("ok")]),
         },
     }
-    (auto_passed if story_gate["ok"] else auto_failed).append(story_gate)
-
-    bugs_ok = all(item.get("ok") for item in bug_results) if bug_results else True
-    if not bugs_ok:
-        bad_bugs = [x for x in bug_results if not x.get("ok")]
-        bug_warning = {
-            "id": "bug_quality",
-            "title": "Баг в некорректном статусе - внимание",
-            "ok": False,
-            "details": {
-                "bugs_total": len(bug_results),
-                "bugs_failed": len(bad_bugs),
-                "reasons": [f"{b.get('issue_key')}: {b.get('details', {}).get('reason')}" for b in bad_bugs]
-            }
-        }
-        auto_warnings.append(bug_warning)
-    elif bug_results:
-        auto_passed.append({
-            "id": "bug_quality",
-            "title": "Статусы багов (CT/IFT/PROM)",
-            "ok": True,
-            "details": {"message": "Все баги в корректных статусах"}
-        })
+    (auto_passed if quality_gate["ok"] else auto_failed).append(quality_gate)
 
     dist_link_ok = _has_distribution_link(release, profile)
     field_name_map = jira_service.get_field_name_map()
@@ -734,15 +710,6 @@ def evaluate_release_gates(
     }
     (auto_passed if dt_gate["ok"] else auto_failed).append(dt_gate)
 
-    rqg_actual_ok = False
-    if qgm_ok and isinstance(qgm_payload, dict):
-        rqg_info = qgm_payload.get("rqgInfo", {})
-        has_blockers = rqg_info.get("hasBlockDataRqg1") or rqg_info.get("hasBlockDataRqg2") or rqg_info.get("hasBlockDataRqg3")
-        to_comment = str(qgm_payload.get("toComment", "")).lower()
-        if not has_blockers and ("успешно" in to_comment or "successfully" in to_comment):
-            rqg_actual_ok = True
-        elif not has_blockers and rqg_info.get("hasIndicativeData"):
-            rqg_actual_ok = True
     enforce_qgm = _norm(os.getenv("RELEASE_FLOW_ENFORCE_QGM", "false")) in {"1", "true", "yes", "y", "да"}
     rqg_warning_only = False
     rqg_gate_ok = rqg_actual_ok
@@ -797,7 +764,6 @@ def evaluate_release_gates(
         "ready_for_transition": ready_for_transition,
         "auto_passed": auto_passed,
         "auto_failed": auto_failed,
-        "auto_warnings": auto_warnings,
         "manual_pending": manual_pending,
         "manual_optional": manual_optional,
         "manual_done": manual_done,
@@ -815,6 +781,7 @@ def format_release_gate_report(result: Dict[str, Any]) -> str:
     lines.append("=" * 80)
     lines.append(f"🧭 GUIDED CYCLE: {result.get('release_key')}")
     lines.append("=" * 80)
+    lines.append("Engine: guided-release-v2.1")
     lines.append(f"Профиль: {result.get('profile_name')} | Проект: {result.get('project_key')}")
     lines.append(f"Текущий этап: {result.get('current_stage')}")
     lines.append(f"Следующий этап: {result.get('next_allowed_transition') or 'нет'}")
@@ -853,15 +820,6 @@ def format_release_gate_report(result: Dict[str, Any]) -> str:
     lines.append(f"📝 Ручные проверки pending: {len(result.get('manual_pending', []))}")
     for check in result.get("manual_pending", []):
         lines.append(f"  - {check.get('id')}: {check.get('message')}")
-    if result.get("auto_warnings"):
-        lines.append("")
-        lines.append(f"⚠️ ВНИМАНИЕ (рекомендации, не блокируют переход): {len(result.get('auto_warnings', []))}")
-        for warn in result.get("auto_warnings", []):
-            lines.append(f" - {warn.get('title')}")
-            if warn.get("id") == "bug_quality":
-                for reason in warn.get("details", {}).get("reasons", []):
-                    lines.append(f"   * 🐛 {reason}")
-
     if result.get("manual_pending"):
         lines.append("  Подтвердить вручную можно командой:")
         lines.append(

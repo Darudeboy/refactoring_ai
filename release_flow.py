@@ -547,21 +547,41 @@ def evaluate_release_gates(
 
     auto_passed: List[Dict[str, Any]] = []
     auto_failed: List[Dict[str, Any]] = []
+    auto_warnings: List[Dict[str, Any]] = []
 
     stories_ok = all(item.get("ok") for item in story_results) if story_results else True
-    bugs_ok = all(item.get("ok") for item in bug_results) if bug_results else True
-    quality_gate = {
-        "id": "story_bug_quality",
-        "title": "Качество Story/Bug",
-        "ok": stories_ok and bugs_ok,
+    story_gate = {
+        "id": "story_quality",
+        "title": "Качество Story (наличие БТ и Архитектуры)",
+        "ok": stories_ok,
         "details": {
             "stories_total": len(story_results),
             "stories_failed": len([x for x in story_results if not x.get("ok")]),
-            "bugs_total": len(bug_results),
-            "bugs_failed": len([x for x in bug_results if not x.get("ok")]),
         },
     }
-    (auto_passed if quality_gate["ok"] else auto_failed).append(quality_gate)
+    (auto_passed if story_gate["ok"] else auto_failed).append(story_gate)
+
+    bugs_ok = all(item.get("ok") for item in bug_results) if bug_results else True
+    if not bugs_ok:
+        bad_bugs = [x for x in bug_results if not x.get("ok")]
+        bug_warning = {
+            "id": "bug_quality",
+            "title": "Баг в некорректном статусе - внимание",
+            "ok": False,
+            "details": {
+                "bugs_total": len(bug_results),
+                "bugs_failed": len(bad_bugs),
+                "reasons": [f"{b.get('issue_key')}: {b.get('details', {}).get('reason')}" for b in bad_bugs]
+            }
+        }
+        auto_warnings.append(bug_warning)
+    elif bug_results:
+        auto_passed.append({
+            "id": "bug_quality",
+            "title": "Статусы багов (CT/IFT/PROM)",
+            "ok": True,
+            "details": {"message": "Все баги в корректных статусах"}
+        })
 
     dist_link_ok = _has_distribution_link(release, profile)
     field_name_map = jira_service.get_field_name_map()
@@ -705,6 +725,7 @@ def evaluate_release_gates(
         "ready_for_transition": ready_for_transition,
         "auto_passed": auto_passed,
         "auto_failed": auto_failed,
+        "auto_warnings": auto_warnings,
         "manual_pending": manual_pending,
         "manual_optional": manual_optional,
         "manual_done": manual_done,

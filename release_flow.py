@@ -546,6 +546,12 @@ def _is_qgm_technical_error(message: str) -> bool:
     msg = (message or "").lower()
     if "request failed" in msg:
         return True
+    if "empty non-json body" in msg:
+        return True
+    if "failed: post returned empty" in msg:
+        return True
+    if "failed: get returned empty" in msg:
+        return True
     status = _parse_http_status_from_text(message or "")
     return status in {400, 401, 403, 404, 405, 429, 500, 502, 503, 504}
 

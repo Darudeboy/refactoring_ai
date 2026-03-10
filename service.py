@@ -60,7 +60,30 @@ class JiraService:
                     linked_keys.append(link['outwardIssue']['key'])
                 elif 'inwardIssue' in link:
                     linked_keys.append(link['inwardIssue']['key'])
-            return list(set(linked_keys))
+
+            # Fallback для tenant'ов, где основной состав релиза хранится через
+            # linkedIssues("REL", "consists of") и не виден напрямую в issuelinks.
+            if not linked_keys:
+                jql_candidates = [
+                    f'issue in linkedIssues("{release_key}", "consists of")',
+                    f'issue in linkedIssues("{release_key}")',
+                ]
+                for jql in jql_candidates:
+                    try:
+                        data = self.jira.jql(jql, limit=5000)
+                        issues = data.get("issues", []) if isinstance(data, dict) else []
+                        for issue in issues:
+                            key = str((issue or {}).get("key", "")).strip().upper()
+                            if key:
+                                linked_keys.append(key)
+                        if linked_keys:
+                            break
+                    except Exception as e:
+                        self.logger.error("JQL fallback linkedIssues failed for %s: %s", release_key, e)
+
+            unique = sorted(set(linked_keys))
+            self.logger.info("Linked issues for %s: %s", release_key, len(unique))
+            return unique
         except Exception as e:
             self.logger.error(f"Не удалось получить связи для {release_key}: {e}")
             return []
@@ -231,6 +254,20 @@ class JiraService:
             )
             if response.status_code == 200:
                 return response.text or ""
+
+            # Fallback: часть tenant'ов принимает только issueId вместо issueKey.
+            issue_id = self.get_issue_id(safe_key)
+            if issue_id:
+                response_by_id = requests.get(
+                    endpoint,
+                    params={"issueId": issue_id},
+                    headers=headers,
+                    timeout=20,
+                    verify=self.config.verify_ssl,
+                )
+                if response_by_id.status_code == 200:
+                    return response_by_id.text or ""
+
             self.logger.error(
                 "sber-test-report HTTP %s for %s: %s",
                 response.status_code,

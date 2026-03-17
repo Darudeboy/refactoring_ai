@@ -17,7 +17,7 @@ from tkinter import messagebox
 import webbrowser
 
 from onboarding import show_onboarding_if_needed
-from config import JiraConfig, CONFLUENCE_URL, CONFLUENCE_TOKEN, CONFLUENCE_SPACE_KEY, CONFLUENCE_PARENT_PAGE_TITLE, CONFLUENCE_TEMPLATE_PAGE_ID, TEAM_NAME
+from config import JiraConfig, CONFLUENCE_URL, CONFLUENCE_TOKEN, CONFLUENCE_SPACE_KEY, CONFLUENCE_PARENT_PAGE_TITLE, CONFLUENCE_TEMPLATE_PAGE_ID, TEAM_NAME, LINK_TASKS_PROJECTS
 from service import JiraService
 from history import OperationHistory
 from lt import run_lt_check_with_target
@@ -2727,8 +2727,8 @@ class ModernJiraApp(ctk.CTk):
         """Поток привязки задач"""
         try:
             self.after(0, lambda: self.update_status("Поиск задач..."))
-            # Поиск без фильтра по проекту: fixVersion в Jira привязан к проекту, версия может быть в любом проекте
-            jql = f'issuetype IN (Bug, Story) AND fixVersion = "{fix_version}"'
+            projects = ", ".join(p.strip() for p in LINK_TASKS_PROJECTS.split(",") if p.strip())
+            jql = f'project IN ({projects}) AND issuetype IN (Bug, Story) AND fixVersion = "{fix_version}"'
             issues = self.jira_service.search_issues(jql)
 
             if not issues:

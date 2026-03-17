@@ -993,9 +993,10 @@ class BlastAIAssistant:
                 "link tasks",
             )
         )
-        if link_intent and release_match and version_match:
+        fix_version_fallback = _extract_fix_version_from_text(raw)
+        if link_intent and release_match and (version_match or fix_version_fallback):
             release_key = release_match.group(1).upper()
-            fix_version = version_match.group(1).strip()
+            fix_version = (version_match.group(1) if version_match else fix_version_fallback).strip()
             self.app_gui.append_ai_chat(
                 f"🛠️ [Агент] Прямая команда: привязка задач {fix_version} -> {release_key}\n"
             )

@@ -17,9 +17,9 @@ from tkinter import messagebox
 import webbrowser
 
 from onboarding import show_onboarding_if_needed
-import config as _config
 from config import JiraConfig, CONFLUENCE_URL, CONFLUENCE_TOKEN, CONFLUENCE_SPACE_KEY, CONFLUENCE_PARENT_PAGE_TITLE, CONFLUENCE_TEMPLATE_PAGE_ID, TEAM_NAME
-LINK_TASKS_PROJECTS = getattr(_config, 'LINK_TASKS_PROJECTS', None) or os.getenv('LINK_TASKS_PROJECTS', 'HRM,HRC,NEUROUI,SFILE,SEARCHCS,NEURO,HRPDEV')
+# Список проектов для привязки задач по fixVersion (не из config — чтобы работало со старым config без этой переменной)
+LINK_TASKS_PROJECTS = os.getenv('LINK_TASKS_PROJECTS', 'HRM,HRC,NEUROUI,SFILE,SEARCHCS,NEURO,HRPDEV')
 from service import JiraService
 from history import OperationHistory
 from lt import run_lt_check_with_target

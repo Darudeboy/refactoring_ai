@@ -94,6 +94,17 @@ class JiraService:
             data = self.jira.jql(jql, limit=limit)
             return data.get('issues', [])
         except Exception as e:
+            err_text = str(e)
+            if "fixVersion" in err_text and (
+                "отсутствует" in err_text or "не найдено" in err_text.lower()
+                or "invalid" in err_text.lower() or "does not exist" in err_text.lower()
+            ):
+                self.logger.error("Ошибка поиска задач: %s", e)
+                raise ValueError(
+                    "В Jira нет версии с таким названием для поля fixVersion. "
+                    "Проверьте точное название в настройках версий проекта (Jira → Проект → Версии). "
+                    f"Ошибка: {err_text}"
+                ) from e
             self.logger.error(f"Ошибка поиска задач: {e}")
             raise
 

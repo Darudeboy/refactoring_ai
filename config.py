@@ -49,6 +49,9 @@ TEAM_NAME = os.getenv('TEAM_NAME', 'Команда')
 RELEASE_FLOW_HOTFIX_PROJECTS = os.getenv('RELEASE_FLOW_HOTFIX_PROJECTS', 'HOTFIX,HF')
 RELEASE_FLOW_PROFILE_OVERRIDES = os.getenv('RELEASE_FLOW_PROFILE_OVERRIDES', '')
 
+# Проекты для поиска задач по fixVersion при привязке к релизу (Jira привязывает версию к проекту)
+LINK_TASKS_PROJECTS = os.getenv('LINK_TASKS_PROJECTS', 'HRM,HRC,NEUROUI,SFILE,SEARCHCS,NEURO,HRPDEV')
+
 
 # Валидация обязательных параметров
 def validate_config():

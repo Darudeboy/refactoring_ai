@@ -29,6 +29,43 @@ from release_pr_status import (
 from release_flow import evaluate_release_gates, format_release_gate_report
 from arch import JIRA_TOKEN as ARCH_JIRA_TOKEN
 from master_analyzer import MasterServicesAnalyzer, ConfluenceDeployPlanGenerator
+from theme import (
+    PRIMARY,
+    PRIMARY_HOVER,
+    NEUTRAL_BG_SIDEBAR,
+    NEUTRAL_BG_CARD,
+    NEUTRAL_TEXT,
+    NEUTRAL_TEXT_SECONDARY,
+    NEUTRAL_TEXT_MUTED,
+    SEMANTIC_SUCCESS,
+    SEMANTIC_SUCCESS_HOVER,
+    SEMANTIC_WARNING,
+    SEMANTIC_WARNING_HOVER,
+    SEMANTIC_ERROR,
+    SEMANTIC_ERROR_HOVER,
+    SEMANTIC_INFO,
+    CHAT_USER,
+    CHAT_BOT,
+    CHAT_TOOL,
+    CHAT_ERROR,
+    CHAT_DEFAULT,
+    STATUS_OK,
+    STATUS_ERROR,
+    STATUS_PENDING,
+    FONT_HEADING,
+    FONT_SUBHEADING,
+    FONT_BODY,
+    FONT_LABEL,
+    FONT_CAPTION,
+    FONT_MONO,
+    SPACE_SM,
+    SPACE_MD,
+    SPACE_LG,
+    CORNER_RADIUS,
+    BUTTON_HEIGHT_PRIMARY,
+    BUTTON_HEIGHT_SECONDARY,
+    SIDEBAR_WIDTH,
+)
 
 # === ИМПОРТЫ ДЛЯ ИИ-АГЕНТА ===
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage, SystemMessage
@@ -40,7 +77,6 @@ from langgraph.graph import StateGraph, END
 from typing import Any, List, TypedDict, Annotated, Sequence
 
 ctk.set_appearance_mode("light")
-ctk.set_default_color_theme("blue")
 
 # Отключаем SSL-шум для Агента
 warnings.filterwarnings('ignore')
@@ -1302,7 +1338,7 @@ class ModernJiraApp(ctk.CTk):
     def create_widgets(self):
         """Создание виджетов интерфейса"""
         # Боковая панель
-        self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0)
+        self.sidebar = ctk.CTkFrame(self, width=SIDEBAR_WIDTH, corner_radius=0, fg_color=NEUTRAL_BG_SIDEBAR)
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
 
@@ -1320,53 +1356,53 @@ class ModernJiraApp(ctk.CTk):
 
         guide_btn = ctk.CTkButton(
             self.sidebar,
-            text="📚 Гайд",
+            text="Гайд",
             command=self.show_onboarding_manual,
             width=180,
-            height=40,
-            font=("Arial", 14, "bold"),
-            fg_color="#2196F3",
-            hover_color="#1976D2"
+            height=BUTTON_HEIGHT_PRIMARY,
+            font=ctk.CTkFont(size=FONT_BODY, weight="bold"),
+            fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
         )
-        guide_btn.pack(pady=(10, 20), padx=10)
+        guide_btn.pack(pady=(SPACE_MD, SPACE_MD), padx=SPACE_SM)
 
-        ctk.CTkLabel(self.sidebar, text="⚡ Blast ⚡", font=ctk.CTkFont(size=28, weight="bold")).pack(pady=(30, 5))
-        ctk.CTkLabel(self.sidebar, text="v2.3 + AI", font=ctk.CTkFont(size=12), text_color="gray").pack(pady=(0, 30))
+        ctk.CTkLabel(self.sidebar, text="Blast", font=ctk.CTkFont(size=FONT_HEADING + 4, weight="bold"), text_color=NEUTRAL_TEXT).pack(pady=(SPACE_LG, SPACE_SM))
+        ctk.CTkLabel(self.sidebar, text="v2.3 + AI", font=ctk.CTkFont(size=FONT_CAPTION), text_color=NEUTRAL_TEXT_SECONDARY).pack(pady=(0, SPACE_LG))
 
         # Кнопки навигации
         self.nav_btn_operations = ctk.CTkButton(
-            self.sidebar, text="⚡ Операции", command=self.show_operations_tab,
-            font=ctk.CTkFont(size=14), height=45
+            self.sidebar, text="Операции", command=self.show_operations_tab,
+            font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY,
         )
-        self.nav_btn_operations.pack(pady=10, padx=20, fill="x")
+        self.nav_btn_operations.pack(pady=SPACE_SM, padx=SPACE_MD, fill="x")
 
         # === КНОПКА ИИ ===
         self.nav_btn_ai = ctk.CTkButton(
-            self.sidebar, text="🤖 AI Помощник", command=self.show_ai_tab,
-            font=ctk.CTkFont(size=14, weight="bold"), fg_color="#673AB7", hover_color="#512DA8", height=45
+            self.sidebar, text="AI Помощник", command=self.show_ai_tab,
+            font=ctk.CTkFont(size=FONT_BODY, weight="bold"), fg_color=PRIMARY, hover_color=PRIMARY_HOVER, height=BUTTON_HEIGHT_PRIMARY,
         )
-        self.nav_btn_ai.pack(pady=10, padx=20, fill="x")
+        self.nav_btn_ai.pack(pady=SPACE_SM, padx=SPACE_MD, fill="x")
 
         self.nav_btn_history = ctk.CTkButton(
-            self.sidebar, text="📋 История", command=self.show_history_tab,
-            font=ctk.CTkFont(size=14), height=45
+            self.sidebar, text="История", command=self.show_history_tab,
+            font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY,
         )
-        self.nav_btn_history.pack(pady=10, padx=20, fill="x")
+        self.nav_btn_history.pack(pady=SPACE_SM, padx=SPACE_MD, fill="x")
 
         self.nav_btn_logs = ctk.CTkButton(
-            self.sidebar, text="📄 Логи", command=self.show_logs_tab,
-            font=ctk.CTkFont(size=14), height=45
+            self.sidebar, text="Логи", command=self.show_logs_tab,
+            font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY,
         )
-        self.nav_btn_logs.pack(pady=10, padx=20, fill="x")
+        self.nav_btn_logs.pack(pady=SPACE_SM, padx=SPACE_MD, fill="x")
 
         self.connection_label = ctk.CTkLabel(
             self.sidebar, text="● Проверка...",
-            font=ctk.CTkFont(size=12), text_color="orange"
+            font=ctk.CTkFont(size=FONT_CAPTION), text_color=STATUS_PENDING,
         )
-        self.connection_label.pack(side="bottom", pady=20)
+        self.connection_label.pack(side="bottom", pady=SPACE_MD)
 
         # Основная область
-        self.main_content = ctk.CTkFrame(self, corner_radius=0)
+        self.main_content = ctk.CTkFrame(self, corner_radius=0, fg_color=NEUTRAL_BG_CARD)
         self.main_content.pack(side="right", fill="both", expand=True)
 
         self.create_operations_tab()
@@ -1378,21 +1414,21 @@ class ModernJiraApp(ctk.CTk):
     # === ИНТЕРФЕЙС ВКЛАДКИ ИИ ===
     def create_ai_tab(self):
         """Вкладка ИИ-Помощника"""
-        self.ai_tab = ctk.CTkFrame(self.main_content)
+        self.ai_tab = ctk.CTkFrame(self.main_content, fg_color="transparent")
 
         header = ctk.CTkFrame(self.ai_tab, fg_color="transparent")
-        header.pack(fill="x", padx=20, pady=(20, 10))
-        ctk.CTkLabel(header, text="Умный помощник", font=ctk.CTkFont(size=24, weight="bold")).pack(side="left")
+        header.pack(fill="x", padx=SPACE_MD, pady=(SPACE_MD, SPACE_SM))
+        ctk.CTkLabel(header, text="Умный помощник", font=ctk.CTkFont(size=FONT_HEADING, weight="bold"), text_color=NEUTRAL_TEXT).pack(side="left")
 
         # Окно чата
-        self.ai_chat_display = ctk.CTkTextbox(self.ai_tab, font=ctk.CTkFont(size=14), wrap="word", state="disabled")
-        self.ai_chat_display.pack(fill="both", expand=True, padx=20, pady=10)
+        self.ai_chat_display = ctk.CTkTextbox(self.ai_tab, font=ctk.CTkFont(size=FONT_BODY), wrap="word", state="disabled", corner_radius=CORNER_RADIUS)
+        self.ai_chat_display.pack(fill="both", expand=True, padx=SPACE_MD, pady=SPACE_SM)
 
-        self.ai_chat_display.tag_config("ai_user", foreground="#0D47A1", lmargin1=10, lmargin2=10)
-        self.ai_chat_display.tag_config("ai_bot", foreground="#1B5E20", lmargin1=10, lmargin2=10)
-        self.ai_chat_display.tag_config("ai_tool", foreground="#6A1B9A", lmargin1=10, lmargin2=10)
-        self.ai_chat_display.tag_config("ai_error", foreground="#B71C1C", lmargin1=10, lmargin2=10)
-        self.ai_chat_display.tag_config("ai_default", foreground="#263238")
+        self.ai_chat_display.tag_config("ai_user", foreground=CHAT_USER, lmargin1=10, lmargin2=10)
+        self.ai_chat_display.tag_config("ai_bot", foreground=CHAT_BOT, lmargin1=10, lmargin2=10)
+        self.ai_chat_display.tag_config("ai_tool", foreground=CHAT_TOOL, lmargin1=10, lmargin2=10)
+        self.ai_chat_display.tag_config("ai_error", foreground=CHAT_ERROR, lmargin1=10, lmargin2=10)
+        self.ai_chat_display.tag_config("ai_default", foreground=CHAT_DEFAULT)
 
         # Приветственное сообщение
         self.append_ai_chat(
@@ -1407,76 +1443,87 @@ class ModernJiraApp(ctk.CTk):
             "• Переведи HRPRELEASE-111135 в Ready for Prod\\n\\n"
         )
 
-        quick_frame = ctk.CTkFrame(self.ai_tab)
-        quick_frame.pack(fill="x", padx=20, pady=(0, 10))
+        quick_frame = ctk.CTkFrame(self.ai_tab, fg_color="transparent")
+        quick_frame.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_SM))
         ctk.CTkLabel(
             quick_frame,
             text="Быстрые сценарии:",
-            font=ctk.CTkFont(size=13, weight="bold"),
-        ).pack(side="left", padx=(10, 8), pady=8)
+            font=ctk.CTkFont(size=FONT_LABEL, weight="bold"),
+            text_color=NEUTRAL_TEXT,
+        ).pack(side="left", padx=(SPACE_SM, SPACE_SM), pady=SPACE_SM)
 
         ctk.CTkButton(
             quick_frame,
             text="Статус релиза",
             width=130,
+            font=ctk.CTkFont(size=FONT_BODY),
             command=lambda: self.send_ai_quick_command("Проверь статус HRPRELEASE-"),
-        ).pack(side="left", padx=5, pady=6)
+        ).pack(side="left", padx=SPACE_SM, pady=SPACE_SM)
 
         ctk.CTkButton(
             quick_frame,
             text="Полный пайплайн",
             width=150,
-            fg_color="#673AB7",
-            hover_color="#512DA8",
+            font=ctk.CTkFont(size=FONT_BODY),
+            fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
             command=lambda: self.send_ai_quick_command(
                 "Запусти полный пайплайн для HRPRELEASE-, проект SFILE, create_bt=true, create_deploy=true"
             ),
-        ).pack(side="left", padx=5, pady=6)
+        ).pack(side="left", padx=SPACE_SM, pady=SPACE_SM)
 
         ctk.CTkButton(
             quick_frame,
             text="Сдвинуть статус",
             width=140,
+            font=ctk.CTkFont(size=FONT_BODY),
             command=lambda: self.send_ai_quick_command(
                 "Переведи HRPRELEASE- в Ready for Prod"
             ),
-        ).pack(side="left", padx=5, pady=6)
+        ).pack(side="left", padx=SPACE_SM, pady=SPACE_SM)
 
         ctk.CTkButton(
             quick_frame,
             text="Задачи + PR",
             width=130,
-            fg_color="#1976D2",
-            hover_color="#1565C0",
+            font=ctk.CTkFont(size=FONT_BODY),
+            fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
             command=lambda: self.send_ai_quick_command(
                 "Проверь задачи и PR для HRPRELEASE-"
             ),
-        ).pack(side="left", padx=5, pady=6)
+        ).pack(side="left", padx=SPACE_SM, pady=SPACE_SM)
 
         ctk.CTkButton(
             quick_frame,
             text="Guided cycle",
             width=130,
-            fg_color="#00897B",
-            hover_color="#00695C",
+            font=ctk.CTkFont(size=FONT_BODY),
+            fg_color=SEMANTIC_SUCCESS,
+            hover_color=SEMANTIC_SUCCESS_HOVER,
             command=lambda: self.send_ai_quick_command(
                 "Запусти полный цикл релиза для HRPRELEASE-"
             ),
-        ).pack(side="left", padx=5, pady=6)
+        ).pack(side="left", padx=SPACE_SM, pady=SPACE_SM)
 
         # Ввод
         input_frame = ctk.CTkFrame(self.ai_tab, fg_color="transparent")
-        input_frame.pack(fill="x", padx=20, pady=(0, 20))
+        input_frame.pack(fill="x", padx=SPACE_MD, pady=(0, SPACE_MD))
 
         self.ai_input = ctk.CTkEntry(
             input_frame,
-            font=ctk.CTkFont(size=14),
+            font=ctk.CTkFont(size=FONT_BODY),
             placeholder_text="Напр: Запусти полный пайплайн для HRPRELEASE-113300, project SFILE",
         )
-        self.ai_input.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.ai_input.pack(side="left", fill="x", expand=True, padx=(0, SPACE_SM))
         self.ai_input.bind("<Return>", self.send_ai_message)
 
-        self.ai_send_btn = ctk.CTkButton(input_frame, text="Отправить 🚀", width=120, height=40, font=ctk.CTkFont(weight="bold"), command=self.send_ai_message)
+        self.ai_send_btn = ctk.CTkButton(
+            input_frame, text="Отправить", width=120, height=BUTTON_HEIGHT_PRIMARY,
+            font=ctk.CTkFont(size=FONT_BODY, weight="bold"),
+            fg_color=PRIMARY, hover_color=PRIMARY_HOVER,
+            command=self.send_ai_message,
+        )
         self.ai_send_btn.pack(side="right")
 
     def append_ai_chat(self, text):
@@ -1518,173 +1565,176 @@ class ModernJiraApp(ctk.CTk):
 
     def create_operations_tab(self):
         """Вкладка операций"""
-        self.operations_tab = ctk.CTkFrame(self.main_content)
+        self.operations_tab = ctk.CTkFrame(self.main_content, fg_color="transparent")
 
         header = ctk.CTkFrame(self.operations_tab, fg_color="transparent")
-        header.pack(fill="x", padx=20, pady=(20, 10))
-        ctk.CTkLabel(header, text="Операции с релизами", font=ctk.CTkFont(size=24, weight="bold")).pack(side="left")
+        header.pack(fill="x", padx=SPACE_MD, pady=(SPACE_MD, SPACE_SM))
+        ctk.CTkLabel(header, text="Операции с релизами", font=ctk.CTkFont(size=FONT_HEADING, weight="bold"), text_color=NEUTRAL_TEXT).pack(side="left")
 
         self.operations_tabs = ctk.CTkTabview(self.operations_tab)
-        self.operations_tabs.pack(fill="both", expand=True, padx=20, pady=10)
+        self.operations_tabs.pack(fill="both", expand=True, padx=SPACE_MD, pady=SPACE_SM)
         actions_tab = self.operations_tabs.add("Операции")
         monitor_tab = self.operations_tabs.add("Мониторинг")
         self.operations_tabs.set("Операции")
 
-        input_frame = ctk.CTkFrame(actions_tab)
-        input_frame.pack(fill="x", padx=4, pady=8)
+        input_frame = ctk.CTkFrame(actions_tab, corner_radius=CORNER_RADIUS)
+        input_frame.pack(fill="x", padx=SPACE_SM, pady=SPACE_SM)
         input_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(input_frame, text="Ключ релиза:", font=ctk.CTkFont(size=14, weight="bold")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        ctk.CTkLabel(input_frame, text="Ключ релиза:", font=ctk.CTkFont(size=FONT_LABEL, weight="bold"), text_color=NEUTRAL_TEXT).grid(row=0, column=0, padx=SPACE_SM, pady=SPACE_SM, sticky="e")
         self.release_entry = ctk.CTkEntry(
             input_frame,
             width=320,
-            font=ctk.CTkFont(size=14),
+            font=ctk.CTkFont(size=FONT_BODY),
             placeholder_text="HRPRELEASE-123456",
         )
-        self.release_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+        self.release_entry.grid(row=0, column=1, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        ctk.CTkLabel(input_frame, text="Fix Version:", font=ctk.CTkFont(size=14, weight="bold")).grid(row=1, column=0, padx=10, pady=10, sticky="e")
+        ctk.CTkLabel(input_frame, text="Fix Version:", font=ctk.CTkFont(size=FONT_LABEL, weight="bold"), text_color=NEUTRAL_TEXT).grid(row=1, column=0, padx=SPACE_SM, pady=SPACE_SM, sticky="e")
         self.version_entry = ctk.CTkEntry(
             input_frame,
             width=320,
-            font=ctk.CTkFont(size=14),
+            font=ctk.CTkFont(size=FONT_BODY),
             placeholder_text="Minor-2026-03-10",
         )
-        self.version_entry.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+        self.version_entry.grid(row=1, column=1, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        ctk.CTkLabel(input_frame, text="Целевой LT (дни):", font=ctk.CTkFont(size=14, weight="bold")).grid(row=2, column=0, padx=10, pady=10, sticky="e")
-        self.target_lt_entry = ctk.CTkEntry(input_frame, width=100, font=ctk.CTkFont(size=14))
+        ctk.CTkLabel(input_frame, text="Целевой LT (дни):", font=ctk.CTkFont(size=FONT_LABEL, weight="bold"), text_color=NEUTRAL_TEXT).grid(row=2, column=0, padx=SPACE_SM, pady=SPACE_SM, sticky="e")
+        self.target_lt_entry = ctk.CTkEntry(input_frame, width=100, font=ctk.CTkFont(size=FONT_BODY))
         self.target_lt_entry.insert(0, "45")
-        self.target_lt_entry.grid(row=2, column=1, padx=10, pady=10, sticky="w")
+        self.target_lt_entry.grid(row=2, column=1, padx=SPACE_SM, pady=SPACE_SM, sticky="w")
 
-        status_panel = ctk.CTkFrame(actions_tab)
-        status_panel.pack(fill="x", padx=4, pady=8)
+        status_panel = ctk.CTkFrame(actions_tab, corner_radius=CORNER_RADIUS)
+        status_panel.pack(fill="x", padx=SPACE_SM, pady=SPACE_SM)
         status_panel.grid_columnconfigure(1, weight=1)
         status_panel.grid_columnconfigure(3, weight=1)
 
         ctk.CTkLabel(
             status_panel,
             text="Статус релиза:",
-            font=ctk.CTkFont(size=13, weight="bold"),
-        ).grid(row=0, column=0, padx=10, pady=10, sticky="e")
+            font=ctk.CTkFont(size=FONT_LABEL, weight="bold"),
+            text_color=NEUTRAL_TEXT,
+        ).grid(row=0, column=0, padx=SPACE_SM, pady=SPACE_SM, sticky="e")
 
         self.release_status_value = ctk.CTkLabel(
             status_panel,
             text="не загружен",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            text_color="#616161",
+            font=ctk.CTkFont(size=FONT_LABEL, weight="bold"),
+            text_color=NEUTRAL_TEXT_SECONDARY,
         )
-        self.release_status_value.grid(row=0, column=1, padx=10, pady=10, sticky="w")
+        self.release_status_value.grid(row=0, column=1, padx=SPACE_SM, pady=SPACE_SM, sticky="w")
 
         self.refresh_status_btn = ctk.CTkButton(
             status_panel,
             text="Обновить статус",
             width=140,
+            font=ctk.CTkFont(size=FONT_BODY),
             command=self.refresh_release_status,
         )
-        self.refresh_status_btn.grid(row=0, column=2, padx=8, pady=10, sticky="w")
+        self.refresh_status_btn.grid(row=0, column=2, padx=SPACE_SM, pady=SPACE_SM, sticky="w")
 
         ctk.CTkLabel(
             status_panel,
             text="Новый статус:",
-            font=ctk.CTkFont(size=13, weight="bold"),
-        ).grid(row=1, column=0, padx=10, pady=10, sticky="e")
+            font=ctk.CTkFont(size=FONT_LABEL, weight="bold"),
+            text_color=NEUTRAL_TEXT,
+        ).grid(row=1, column=0, padx=SPACE_SM, pady=SPACE_SM, sticky="e")
 
         self.target_status_entry = ctk.CTkEntry(
             status_panel,
             width=260,
-            font=ctk.CTkFont(size=13),
+            font=ctk.CTkFont(size=FONT_LABEL),
             placeholder_text="Напр: Ready for Prod",
         )
-        self.target_status_entry.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+        self.target_status_entry.grid(row=1, column=1, padx=SPACE_SM, pady=SPACE_SM, sticky="w")
 
         self.move_status_btn = ctk.CTkButton(
             status_panel,
             text="Сдвинуть статус",
             width=140,
-            fg_color="#00796B",
-            hover_color="#00695C",
+            font=ctk.CTkFont(size=FONT_BODY),
             command=self.move_release_status_manual,
         )
-        self.move_status_btn.grid(row=1, column=2, padx=8, pady=10, sticky="w")
+        self.move_status_btn.grid(row=1, column=2, padx=SPACE_SM, pady=SPACE_SM, sticky="w")
 
         self.ai_pipeline_btn = ctk.CTkButton(
             status_panel,
-            text="🤖 Полный пайплайн",
+            text="Полный пайплайн",
             width=170,
-            fg_color="#512DA8",
-            hover_color="#4527A0",
+            font=ctk.CTkFont(size=FONT_BODY),
+            fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
             command=self.run_ai_release_pipeline,
         )
-        self.ai_pipeline_btn.grid(row=0, column=3, rowspan=2, padx=8, pady=10, sticky="ew")
+        self.ai_pipeline_btn.grid(row=0, column=3, rowspan=2, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        options_frame = ctk.CTkFrame(actions_tab)
-        options_frame.pack(fill="x", padx=4, pady=8)
+        options_frame = ctk.CTkFrame(actions_tab, corner_radius=CORNER_RADIUS)
+        options_frame.pack(fill="x", padx=SPACE_SM, pady=SPACE_SM)
 
         self.dry_run_var = ctk.BooleanVar(value=False)
-        self.dry_run_check = ctk.CTkCheckBox(options_frame, text="Тестовый прогон", variable=self.dry_run_var, font=ctk.CTkFont(size=13))
-        self.dry_run_check.pack(side="left", padx=10)
+        self.dry_run_check = ctk.CTkCheckBox(options_frame, text="Тестовый прогон", variable=self.dry_run_var, font=ctk.CTkFont(size=FONT_LABEL))
+        self.dry_run_check.pack(side="left", padx=SPACE_SM)
 
         self.parallel_var = ctk.BooleanVar(value=True)
-        self.parallel_check = ctk.CTkCheckBox(options_frame, text="Параллельная обработка", variable=self.parallel_var, font=ctk.CTkFont(size=13))
-        self.parallel_check.pack(side="left", padx=10)
+        self.parallel_check = ctk.CTkCheckBox(options_frame, text="Параллельная обработка", variable=self.parallel_var, font=ctk.CTkFont(size=FONT_LABEL))
+        self.parallel_check.pack(side="left", padx=SPACE_SM)
 
-        buttons_frame = ctk.CTkFrame(actions_tab)
-        buttons_frame.pack(fill="x", padx=4, pady=8)
+        buttons_frame = ctk.CTkFrame(actions_tab, corner_radius=CORNER_RADIUS)
+        buttons_frame.pack(fill="x", padx=SPACE_SM, pady=SPACE_SM)
 
-        self.link_btn = ctk.CTkButton(buttons_frame, text="🔗 Привязать задачи", command=self.link_issues, font=ctk.CTkFont(size=14), height=40)
-        self.link_btn.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        self.link_btn = ctk.CTkButton(buttons_frame, text="Привязать задачи", command=self.link_issues, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY)
+        self.link_btn.grid(row=0, column=0, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        self.cleanup_btn = ctk.CTkButton(buttons_frame, text="🧹 Очистить связи", command=self.cleanup_issues, font=ctk.CTkFont(size=14), height=40)
-        self.cleanup_btn.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        self.cleanup_btn = ctk.CTkButton(buttons_frame, text="Очистить связи", command=self.cleanup_issues, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY)
+        self.cleanup_btn.grid(row=0, column=1, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        self.remove_all_btn = ctk.CTkButton(buttons_frame, text="⚠️ Удалить все связи", command=self.remove_all_issues, font=ctk.CTkFont(size=14), height=40, fg_color="#d13438", hover_color="#a80000")
-        self.remove_all_btn.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+        self.remove_all_btn = ctk.CTkButton(buttons_frame, text="Удалить все связи", command=self.remove_all_issues, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY, fg_color=SEMANTIC_ERROR, hover_color=SEMANTIC_ERROR_HOVER)
+        self.remove_all_btn.grid(row=0, column=2, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        self.lt_btn = ctk.CTkButton(buttons_frame, text="📊 Проверка LT", command=self.run_lt_check, font=ctk.CTkFont(size=14), height=40)
-        self.lt_btn.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+        self.lt_btn = ctk.CTkButton(buttons_frame, text="Проверка LT", command=self.run_lt_check, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY)
+        self.lt_btn.grid(row=1, column=0, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
         self.rqg_btn = ctk.CTkButton(
             buttons_frame,
-            text="🛡 Проверка RQG",
+            text="Проверка RQG",
             command=self.run_rqg_check,
-            font=ctk.CTkFont(size=14),
-            height=40,
-            fg_color="#5C6BC0",
-            hover_color="#3F51B5",
+            font=ctk.CTkFont(size=FONT_BODY),
+            height=BUTTON_HEIGHT_PRIMARY,
+            fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
         )
-        self.rqg_btn.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
+        self.rqg_btn.grid(row=2, column=0, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
         self.pr_status_btn = ctk.CTkButton(
             buttons_frame,
-            text="🔍 Задачи + PR",
+            text="Задачи + PR",
             command=self.run_release_pr_status_ui,
-            font=ctk.CTkFont(size=14),
-            height=40,
-            fg_color="#1976D2",
-            hover_color="#1565C0",
+            font=ctk.CTkFont(size=FONT_BODY),
+            height=BUTTON_HEIGHT_PRIMARY,
+            fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
         )
-        self.pr_status_btn.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        self.pr_status_btn.grid(row=2, column=1, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
         self.guided_cycle_btn = ctk.CTkButton(
             buttons_frame,
-            text="🧭 Guided Cycle",
+            text="Guided Cycle",
             command=self.run_guided_cycle_ui,
-            font=ctk.CTkFont(size=14),
-            height=40,
-            fg_color="#00897B",
-            hover_color="#00695C",
+            font=ctk.CTkFont(size=FONT_BODY),
+            height=BUTTON_HEIGHT_PRIMARY,
+            fg_color=SEMANTIC_SUCCESS,
+            hover_color=SEMANTIC_SUCCESS_HOVER,
         )
-        self.guided_cycle_btn.grid(row=2, column=2, padx=5, pady=5, sticky="ew")
+        self.guided_cycle_btn.grid(row=2, column=2, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        self.master_btn = ctk.CTkButton(buttons_frame, text="🔀 Мастер-ветки", command=self.analyze_master_services, font=ctk.CTkFont(size=14), height=40, fg_color="#4CAF50", hover_color="#45a049")
-        self.master_btn.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.master_btn = ctk.CTkButton(buttons_frame, text="Мастер-ветки", command=self.analyze_master_services, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY, fg_color=SEMANTIC_SUCCESS, hover_color=SEMANTIC_SUCCESS_HOVER)
+        self.master_btn.grid(row=1, column=1, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        self.deploy_btn = ctk.CTkButton(buttons_frame, text="📝 Деплой-план", command=self.create_deploy_plan, font=ctk.CTkFont(size=14), height=40, fg_color="#FF9800", hover_color="#F57C00", state="disabled")
-        self.deploy_btn.grid(row=1, column=2, padx=5, pady=5, sticky="ew")
+        self.deploy_btn = ctk.CTkButton(buttons_frame, text="Деплой-план", command=self.create_deploy_plan, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY, fg_color=SEMANTIC_WARNING, hover_color=SEMANTIC_WARNING_HOVER, state="disabled")
+        self.deploy_btn.grid(row=1, column=2, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
-        self.cancel_btn = ctk.CTkButton(buttons_frame, text="❌ Отменить", command=self.cancel_current_operation, font=ctk.CTkFont(size=14), height=40, state="disabled")
-        self.cancel_btn.grid(row=3, column=0, columnspan=4, padx=5, pady=5, sticky="ew")
+        self.cancel_btn = ctk.CTkButton(buttons_frame, text="Отменить", command=self.cancel_current_operation, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_PRIMARY, state="disabled")
+        self.cancel_btn.grid(row=3, column=0, columnspan=4, padx=SPACE_SM, pady=SPACE_SM, sticky="ew")
 
         for i in range(4):
             buttons_frame.columnconfigure(i, weight=1)
@@ -1694,40 +1744,40 @@ class ModernJiraApp(ctk.CTk):
             info_label = ctk.CTkLabel(
                 actions_tab,
                 text=f"Confluence: {CONFLUENCE_SPACE_KEY}/{CONFLUENCE_PARENT_PAGE_TITLE} | Команда: {TEAM_NAME}",
-                font=ctk.CTkFont(size=10),
-                text_color="gray"
+                font=ctk.CTkFont(size=FONT_CAPTION),
+                text_color=NEUTRAL_TEXT_SECONDARY,
             )
-            info_label.pack(pady=5)
+            info_label.pack(pady=SPACE_SM)
 
-        progress_frame = ctk.CTkFrame(monitor_tab)
-        progress_frame.pack(fill="x", padx=4, pady=8)
+        progress_frame = ctk.CTkFrame(monitor_tab, corner_radius=CORNER_RADIUS)
+        progress_frame.pack(fill="x", padx=SPACE_SM, pady=SPACE_SM)
 
         self.progress_label = ctk.CTkLabel(
             progress_frame,
             text="Ожидание запуска...",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#616161",
+            font=ctk.CTkFont(size=FONT_SUBHEADING, weight="bold"),
+            text_color=NEUTRAL_TEXT_SECONDARY,
         )
-        self.progress_label.pack(pady=5)
+        self.progress_label.pack(pady=SPACE_SM)
 
         self.progress_bar = ctk.CTkProgressBar(progress_frame, width=600)
-        self.progress_bar.pack(pady=5)
+        self.progress_bar.pack(pady=SPACE_SM)
         self.progress_bar.set(0)
 
-        self.details_label = ctk.CTkLabel(progress_frame, text="", font=ctk.CTkFont(size=12), text_color="gray")
-        self.details_label.pack(pady=5)
+        self.details_label = ctk.CTkLabel(progress_frame, text="", font=ctk.CTkFont(size=FONT_CAPTION), text_color=NEUTRAL_TEXT_MUTED)
+        self.details_label.pack(pady=SPACE_SM)
 
-        results_frame = ctk.CTkFrame(monitor_tab)
-        results_frame.pack(fill="both", expand=True, padx=4, pady=8)
+        results_frame = ctk.CTkFrame(monitor_tab, corner_radius=CORNER_RADIUS)
+        results_frame.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
 
-        ctk.CTkLabel(results_frame, text="Результаты:", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=10, pady=5)
+        ctk.CTkLabel(results_frame, text="Результаты:", font=ctk.CTkFont(size=FONT_LABEL, weight="bold"), text_color=NEUTRAL_TEXT).pack(anchor="w", padx=SPACE_SM, pady=SPACE_SM)
 
-        self.results_text = ctk.CTkTextbox(results_frame, font=ctk.CTkFont(family="Consolas", size=11), wrap="word")
-        self.results_text.pack(fill="both", expand=True, padx=10, pady=5)
-        self.results_text.tag_config("success", foreground="#2E7D32")
-        self.results_text.tag_config("error", foreground="#C62828")
-        self.results_text.tag_config("warning", foreground="#EF6C00")
-        self.results_text.tag_config("info", foreground="#1E3A8A")
+        self.results_text = ctk.CTkTextbox(results_frame, font=ctk.CTkFont(size=FONT_MONO), wrap="word", corner_radius=CORNER_RADIUS)
+        self.results_text.pack(fill="both", expand=True, padx=SPACE_SM, pady=SPACE_SM)
+        self.results_text.tag_config("success", foreground=SEMANTIC_SUCCESS)
+        self.results_text.tag_config("error", foreground=SEMANTIC_ERROR)
+        self.results_text.tag_config("warning", foreground=SEMANTIC_WARNING)
+        self.results_text.tag_config("info", foreground=SEMANTIC_INFO)
 
     def show_onboarding_manual(self):
         """Показать онбординг вручную"""
@@ -1736,34 +1786,34 @@ class ModernJiraApp(ctk.CTk):
 
     def create_history_tab(self):
         """Вкладка истории"""
-        self.history_tab = ctk.CTkFrame(self.main_content)
+        self.history_tab = ctk.CTkFrame(self.main_content, fg_color="transparent")
 
         header = ctk.CTkFrame(self.history_tab, fg_color="transparent")
-        header.pack(fill="x", padx=20, pady=20)
+        header.pack(fill="x", padx=SPACE_MD, pady=SPACE_MD)
 
-        ctk.CTkLabel(header, text="История операций", font=ctk.CTkFont(size=24, weight="bold")).pack(side="left")
-        ctk.CTkButton(header, text="🔄 Обновить", command=self.refresh_history, font=ctk.CTkFont(size=14)).pack(side="right", padx=5)
-        ctk.CTkButton(header, text="🗑️ Очистить", command=self.clear_history, font=ctk.CTkFont(size=14)).pack(side="right", padx=5)
+        ctk.CTkLabel(header, text="История операций", font=ctk.CTkFont(size=FONT_HEADING, weight="bold"), text_color=NEUTRAL_TEXT).pack(side="left")
+        ctk.CTkButton(header, text="Обновить", command=self.refresh_history, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_SECONDARY).pack(side="right", padx=SPACE_SM)
+        ctk.CTkButton(header, text="Очистить", command=self.clear_history, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_SECONDARY).pack(side="right", padx=SPACE_SM)
 
-        self.history_text = ctk.CTkTextbox(self.history_tab, font=ctk.CTkFont(family="Consolas", size=11))
-        self.history_text.pack(fill="both", expand=True, padx=20, pady=10)
+        self.history_text = ctk.CTkTextbox(self.history_tab, font=ctk.CTkFont(size=FONT_MONO), corner_radius=CORNER_RADIUS)
+        self.history_text.pack(fill="both", expand=True, padx=SPACE_MD, pady=SPACE_SM)
 
     def create_logs_tab(self):
         """Вкладка логов"""
-        self.logs_tab = ctk.CTkFrame(self.main_content)
+        self.logs_tab = ctk.CTkFrame(self.main_content, fg_color="transparent")
 
         header = ctk.CTkFrame(self.logs_tab, fg_color="transparent")
-        header.pack(fill="x", padx=20, pady=20)
+        header.pack(fill="x", padx=SPACE_MD, pady=SPACE_MD)
 
-        ctk.CTkLabel(header, text="Логи приложения", font=ctk.CTkFont(size=24, weight="bold")).pack(side="left")
-        ctk.CTkButton(header, text="🔄 Обновить", command=self.refresh_logs, font=ctk.CTkFont(size=14)).pack(side="right", padx=5)
-        ctk.CTkButton(header, text="🗑️ Очистить", command=self.clear_logs, font=ctk.CTkFont(size=14)).pack(side="right", padx=5)
+        ctk.CTkLabel(header, text="Логи приложения", font=ctk.CTkFont(size=FONT_HEADING, weight="bold"), text_color=NEUTRAL_TEXT).pack(side="left")
+        ctk.CTkButton(header, text="Обновить", command=self.refresh_logs, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_SECONDARY).pack(side="right", padx=SPACE_SM)
+        ctk.CTkButton(header, text="Очистить", command=self.clear_logs, font=ctk.CTkFont(size=FONT_BODY), height=BUTTON_HEIGHT_SECONDARY).pack(side="right", padx=SPACE_SM)
 
-        self.log_text = ctk.CTkTextbox(self.logs_tab, font=ctk.CTkFont(family="Consolas", size=10))
-        self.log_text.pack(fill="both", expand=True, padx=20, pady=10)
-        self.log_text.tag_config("log_error", foreground="#C62828")
-        self.log_text.tag_config("log_warning", foreground="#EF6C00")
-        self.log_text.tag_config("log_info", foreground="#1E3A8A")
+        self.log_text = ctk.CTkTextbox(self.logs_tab, font=ctk.CTkFont(size=FONT_MONO), corner_radius=CORNER_RADIUS)
+        self.log_text.pack(fill="both", expand=True, padx=SPACE_MD, pady=SPACE_SM)
+        self.log_text.tag_config("log_error", foreground=SEMANTIC_ERROR)
+        self.log_text.tag_config("log_warning", foreground=SEMANTIC_WARNING)
+        self.log_text.tag_config("log_info", foreground=SEMANTIC_INFO)
 
     def hide_all_tabs(self):
         """Скрыть все вкладки"""
@@ -1800,21 +1850,21 @@ class ModernJiraApp(ctk.CTk):
             success, message = self.jira_service.test_connection()
             def update_ui():
                 if success:
-                    self.connection_label.configure(text="● Подключено", text_color="green")
+                    self.connection_label.configure(text="● Подключено", text_color=STATUS_OK)
                 else:
-                    self.connection_label.configure(text="● Ошибка", text_color="red")
+                    self.connection_label.configure(text="● Ошибка", text_color=STATUS_ERROR)
             self.after(0, update_ui)
         threading.Thread(target=check, daemon=True).start()
 
     def _release_status_color(self, status_name: str) -> str:
         status = (status_name or "").strip().lower()
         if any(token in status for token in ("done", "ready", "resolved", "closed", "готов", "закрыт")):
-            return "#2E7D32"
+            return SEMANTIC_SUCCESS
         if any(token in status for token in ("blocked", "error", "failed", "отклон", "ошиб", "rejected")):
-            return "#C62828"
+            return SEMANTIC_ERROR
         if any(token in status for token in ("progress", "review", "тест", "в работе")):
-            return "#EF6C00"
-        return "#1565C0"
+            return SEMANTIC_WARNING
+        return PRIMARY
 
     def refresh_release_status(self):
         release_key = self.release_entry.get().strip().upper()
@@ -1823,7 +1873,7 @@ class ModernJiraApp(ctk.CTk):
             return
         issue = self.jira_service.get_issue_details(release_key)
         if not issue:
-            self.release_status_value.configure(text="не найден", text_color="red")
+            self.release_status_value.configure(text="не найден", text_color=STATUS_ERROR)
             messagebox.showerror("Ошибка", f"Не удалось получить релиз {release_key}")
             return
         status = issue.get("fields", {}).get("status", {}).get("name", "Unknown")
@@ -2928,14 +2978,14 @@ class ModernJiraApp(ctk.CTk):
 
     def update_status(self, message):
         text = str(message or "")
-        color = "#1565C0"
+        color = PRIMARY
         lowered = text.lower()
         if "ошиб" in lowered or "error" in lowered:
-            color = "#C62828"
+            color = SEMANTIC_ERROR
         elif "готов" in lowered or "успеш" in lowered or "done" in lowered:
-            color = "#2E7D32"
+            color = SEMANTIC_SUCCESS
         elif "отмена" in lowered or "warning" in lowered:
-            color = "#EF6C00"
+            color = SEMANTIC_WARNING
         self.progress_label.configure(text=text, text_color=color)
 
     def update_progress(self, value, text=""):

@@ -1,0 +1,16 @@
+run_next_step:
+  - "двигай HRPRELEASE-123 дальше"
+  - "следующий шаг для HRPRELEASE-123"
+start_guided_cycle:
+  - "запусти полный цикл релиза для HRPRELEASE-123"
+move_release_status:
+  - "переведи HRPRELEASE-123 в ПСИ"
+create_business_requirements:
+  - "сделай БТ для HRPRELEASE-123 проект SFILE"
+check_rqg:
+  - "проверь rqg для HRPRELEASE-123"
+check_release_tasks_pr_status:
+  - "проверь задачи и pr для HRPRELEASE-123"
+link_issues_by_fix_version:
+  - "привяжи задачи fixVersion HM-REL-05-03-2026 в HRPRELEASE-123"
+

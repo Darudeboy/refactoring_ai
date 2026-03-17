@@ -3,3 +3,4 @@ __pycache__/
 *.log
 .env
 .DS_Store
+.agent_automatic/

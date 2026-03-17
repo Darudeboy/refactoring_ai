@@ -1,0 +1,147 @@
+name: default
+workflow_order:
+  - Формирование
+  - Готов к стабилизации
+  - Стабилизация
+  - Готов к ПСИ
+  - ПСИ
+  - Согласование ППСИ
+  - Утверждение ППСИ
+
+terminal_statuses:
+  - Утверждение ППСИ
+  - Установлен на ПРОМ
+
+# Fallback (если нет live transitions или резолвера)
+transition_ids:
+  Готов к стабилизации: "15903"
+  Стабилизация: "15904"
+  Готов к ПСИ: "15307"
+  ПСИ: "10105"
+  Согласование ППСИ: "16311"
+  Утверждение ППСИ: "16312"
+
+transition_aliases:
+  Стабилизация:
+    - На стабилизацию
+    - Стабилизация
+  Готов к ПСИ:
+    - Готов к ПСИ
+    - На ПСИ
+  Согласование ППСИ:
+    - На согласование ППСИ
+    - Согласование ППСИ
+
+done_statuses:
+  - Done
+  - Closed
+  - Resolved
+  - Выполнено
+  - Закрыто
+
+story_rules:
+  bt_keywords:
+    - бизнес-треб
+    - business requirement
+    - бт
+    - fr
+    - functional requirement
+  arch_keywords:
+    - архитекст
+    - архитект
+    - architecture
+    - architectural
+
+bug_rules:
+  ct_ift_keywords:
+    - ct
+    - ift
+    - ифт
+  ct_ift_allowed_statuses:
+    - Закрыт
+    - Закрыто
+    - Closed
+  prom_keywords:
+    - пром
+    - prom
+  prom_expected_statuses:
+    - Подтверждение выполнения
+    - Done
+    - Closed
+    - Resolved
+    - Выполнено
+
+testing_tab:
+  ift_recommendation_fields:
+    - customfield_ift_recommendation
+    - customfield_recommendation
+  ift_display_keywords:
+    - рекомендация по отчету ифт
+    - recommendation ift
+    - ифт
+  ift_approved_keywords:
+    - рекомендован
+    - recommended
+  nt_display_keywords:
+    - рекомендация нт
+    - нагрузоч
+    - performance recommendation
+  nt_approved_keywords:
+    - не требуется
+    - рекомендован
+    - версия 2 рекомендован
+    - not required
+    - recommended
+  dt_display_keywords:
+    - рекомендация дт
+    - dt recommendation
+  dt_approved_keywords:
+    - рекомендован
+    - recommended
+  green_keywords:
+    - green
+    - success
+    - status-lozenge-success
+    - aui-lozenge-success
+
+distribution_tab:
+  link_fields:
+    - customfield_distribution_link
+    - customfield_distrib_link
+  link_display_keywords:
+    - ссылка на дистрибутив
+    - distribution link
+    - дистрибутив ссылка
+  registered_fields:
+    - customfield_distribution_registered
+    - customfield_distrib_registered
+  registered_keywords:
+    - зарегистрирован
+    - registered
+    - yes
+    - true
+  ke_keywords:
+    - кэ дистрибутива
+    - ке дистрибутива
+    - distribution ke
+    - ke distribution
+
+manual_checks:
+  - id: decommission_distribution
+    title: Проверка выводимых из эксплуатации дистрибутивов
+  - id: load_test_subtask
+    title: Подзадача нагрузочного тестирования
+    keywords: [нагрузоч, load test, performance test]
+    required_statuses: [Закрыто, Закрыт, Closed]
+    required: true
+  - id: author_supervision_subtask
+    title: Подзадача авторского надзора
+    keywords: [авторск, author supervision]
+    required_statuses: [Закрыто, Закрыт, Closed]
+    required: true
+  - id: translations_subtask
+    title: Подзадача проверки переводов
+    keywords: [перевод, translation]
+    required_statuses: [Закрыто, Закрыт, Closed]
+    required: true
+

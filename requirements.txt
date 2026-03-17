@@ -1,0 +1,8 @@
+pyyaml
+requests
+python-dotenv
+atlassian-python-api
+fastapi
+uvicorn
+pydantic
+

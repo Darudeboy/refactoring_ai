@@ -12,6 +12,7 @@ class JiraService:
     def __init__(self, client: JiraClient, *, logger: logging.Logger | None = None):
         self.client = client
         self.logger = logger or logging.getLogger(__name__)
+        self._link_types_cache: dict | None = None
 
     def get_issue_details(self, issue_key: str, expand: str | None = None) -> Optional[dict]:
         safe_key = (issue_key or "").strip().upper()
@@ -264,4 +265,42 @@ class JiraService:
         except Exception as e:
             self.logger.error("Ошибка перевода %s в '%s': %s", safe_key, target_status, e)
             return False, f"Ошибка перевода статуса: {e}"
+
+    def get_link_types(self) -> dict:
+        """Типы связей (name -> link type dict), с кэшем."""
+        if self._link_types_cache is None:
+            try:
+                raw = self.client.get("/rest/api/2/issueLinkType") or []
+                if isinstance(raw, list):
+                    self._link_types_cache = {str(lt.get("name", "")): lt for lt in raw if isinstance(lt, dict) and lt.get("name")}
+                else:
+                    self._link_types_cache = {}
+            except Exception as e:
+                self.logger.error("Ошибка получения типов связей: %s", e)
+                self._link_types_cache = {}
+        return self._link_types_cache or {}
+
+    def search_issues(self, jql: str, limit: int = 500) -> list[dict]:
+        """Поиск задач по JQL."""
+        try:
+            data = self.client.get("/rest/api/2/search", params={"jql": jql, "maxResults": limit}) or {}
+            issues = data.get("issues", []) if isinstance(data, dict) else []
+            return issues if isinstance(issues, list) else []
+        except Exception as e:
+            self.logger.error("Ошибка поиска JQL: %s", e)
+            raise
+
+    def create_issue_link(self, from_issue: str, to_issue: str, link_type_name: str) -> bool:
+        """Создать связь: from_issue -> to_issue с типом link_type_name."""
+        try:
+            payload = {
+                "type": {"name": link_type_name},
+                "inwardIssue": {"key": from_issue.strip().upper()},
+                "outwardIssue": {"key": to_issue.strip().upper()},
+            }
+            response = self.client.post("/rest/api/2/issueLink", data=payload, advanced_mode=True)
+            return getattr(response, "status_code", None) == 201
+        except Exception as e:
+            self.logger.error("Ошибка создания связи %s -> %s: %s", from_issue, to_issue, e)
+            return False
 

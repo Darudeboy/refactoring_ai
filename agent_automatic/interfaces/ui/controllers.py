@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from agent_automatic.application.services.conversation_service import ConversationService
 from agent_automatic.application.services.release_orchestrator import ReleaseOrchestrator
+from agent_automatic.application.use_cases.link_issues import LinkIssuesUseCase
 from agent_automatic.application.use_cases.move_release import MoveReleaseUseCase
 from agent_automatic.application.use_cases.run_next_step import RunNextStepUseCase
 from agent_automatic.domain.commands.parser import CommandParser
@@ -20,6 +21,7 @@ class ControllerDeps:
     conversation: ConversationService
     run_next_step: RunNextStepUseCase
     move_release: MoveReleaseUseCase
+    link_issues: LinkIssuesUseCase
     orchestrator: ReleaseOrchestrator
 
 
@@ -60,6 +62,16 @@ class ChatController:
                 manual_confirmations={},
             )
             return present_guided_cycle(report)
+
+        if cmd.intent == CommandIntent.link_issues_by_fix_version:
+            fix_version = str(cmd.slots.get("fix_version") or "").strip()
+            if not fix_version:
+                return "Укажите fix version (например: привяжи задачи HM-REL-05-03-2026 в HRPRELEASE-123)."
+            res = self.deps.link_issues.execute(
+                release_key=cmd.release_key or "",
+                fix_version=fix_version,
+            )
+            return present_text_result(res)
 
         return present_text_result(Result.failure(RuntimeError(f"Intent not implemented: {cmd.intent}")))
 

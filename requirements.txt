@@ -5,4 +5,5 @@ atlassian-python-api
 fastapi
 uvicorn
 pydantic
+jinja2
 

@@ -7,6 +7,7 @@ from agent_automatic.app.settings import AppSettings
 from agent_automatic.application.services.conversation_service import ConversationService
 from agent_automatic.application.services.release_orchestrator import ReleaseOrchestrator
 from agent_automatic.application.services.release_workflow_engine import ReleaseWorkflowEngine
+from agent_automatic.application.use_cases.link_issues import LinkIssuesUseCase
 from agent_automatic.application.use_cases.move_release import MoveReleaseUseCase
 from agent_automatic.application.use_cases.run_next_step import RunNextStepUseCase
 from agent_automatic.domain.commands.parser import CommandParser
@@ -49,6 +50,7 @@ def build_container(settings: AppSettings) -> Container:
 
     run_next_step = RunNextStepUseCase(jira=jira_service, engine=engine)
     move_release = MoveReleaseUseCase(jira=jira_service)
+    link_issues = LinkIssuesUseCase(jira=jira_service)
 
     sessions = SessionRepo(str(Path(settings.workspace_root) / ".agent_automatic" / "sessions.json"))
     conversation = ConversationService(sessions)
@@ -59,6 +61,7 @@ def build_container(settings: AppSettings) -> Container:
         conversation=conversation,
         run_next_step=run_next_step,
         move_release=move_release,
+        link_issues=link_issues,
         orchestrator=orchestrator,
     )
     controller = ChatController(deps)
